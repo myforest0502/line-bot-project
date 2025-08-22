@@ -64,9 +64,13 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_message)
     )
+@app.route('/health')
+def health():
+    return "OK", 200
 @app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
+
 
 
 
