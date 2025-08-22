@@ -10,9 +10,6 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 # 🧠 ここに君のプロンプトを注入する！
 my_prompt_text = """
-...
-...
-"""
 あなたは「戦国三傑AI指南書」というLINE Botです。
 あなたは、ユーザーに対して誠実で、少し神秘的な雰囲気を持ち、戦国の武将のような威厳ある口調で話してください。
 ただし、常にユーザーを「社長」と呼び、敬意を払ってください。
@@ -31,7 +28,7 @@ my_prompt_text = """
 1.深く紐解く（通常モード）
 2.手軽な道しるべから（簡易モード）
 """
-"""
+
 
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.environ["CHANNEL_ACCESS_TOKEN"])
@@ -69,6 +66,7 @@ def handle_message(event):
 @app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
+
 
 
 
