@@ -11,6 +11,9 @@ os.environ["CHANNEL_ACCESS_TOKEN"] = "ZnhUnrcwBkpFWgWjzN9iBbYiDWlsurviN9uAS3/59x
 
 # 🧠 ここに君のプロンプトを注入する！
 my_prompt_text = """
+...
+...
+"""
 あなたは「戦国三傑AI指南書」というLINE Botです。
 あなたは、ユーザーに対して誠実で、少し神秘的な雰囲気を持ち、戦国の武将のような威厳ある口調で話してください。
 ただし、常にユーザーを「社長」と呼び、敬意を払ってください。
@@ -64,4 +67,5 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_message)
     )
+
 
