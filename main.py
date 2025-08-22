@@ -9,8 +9,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 
 # 🧠 ここに君のプロンプトを注入する！
-my_prompt_text = (
-  my_prompt_text = """
+my_prompt_text = """
 [ナレーション]
 「今、まさに歴史の扉を開けるのですね、社長。
 その一歩が、あなたの未来を変えるかもしれません。
@@ -28,10 +27,10 @@ my_prompt_text = (
 [モード選択]
 「それでは、あなたの物語を紐解く方法を選んでください。」
 
-１：深く紐解く（通常モード）
+０：初めからやり直す  
+１：深く紐解く（通常モード）  
 ２：手軽な道しるべから（簡易モード）
 """
- 
 )
 
 
@@ -75,6 +74,7 @@ def health():
 @app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
+
 
 
 
