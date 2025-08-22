@@ -6,8 +6,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 # 環境変数の設定
 # ⚠️ Renderにデプロイする際は、この部分は削除し、Renderの管理画面で設定します
-os.environ["CHANNEL_SECRET"] = "f6d1764e6871d968ea38f978990df19d"
-os.environ["CHANNEL_ACCESS_TOKEN"] = "ZnhUnrcwBkpFWgWjzN9iBbYiDWlsurviN9uAS3/59x+jSwhbfcGFmxXqO/eS0e4LJkznlcuZEpSLQRo7W/g1iGYuRZ3XxQ+WyyvG4zVRO/AyHVtflNEaINfgh1SWSwQ1MiT6N2beK5gVuZLMyCj+1wdB04t89/1O/w1cDnyilFU="
+
 
 # 🧠 ここに君のプロンプトを注入する！
 my_prompt_text = """
@@ -70,6 +69,7 @@ def handle_message(event):
 @app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
+
 
 
 
