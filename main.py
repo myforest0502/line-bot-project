@@ -5,6 +5,12 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 # 環境変数の設定
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
+
+import openai
+openai.api_key = "sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+
 # ⚠️ Renderにデプロイする際は、この部分は削除し、Renderの管理画面で設定します
 
 
@@ -75,6 +81,7 @@ def health():
 @app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
+
 
 
 
