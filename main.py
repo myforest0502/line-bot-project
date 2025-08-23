@@ -31,6 +31,7 @@ my_prompt_text = """
 １：深く紐解く（通常モード）  
 ２：手軽な道しるべから（簡易モード）
 """
+
 )
 
 
@@ -74,6 +75,7 @@ def health():
 @app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
+
 
 
 
