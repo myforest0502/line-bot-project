@@ -1,9 +1,6 @@
-line-bot-sdk
-flask
-gunicorn
-python-dotenv
-gunicorn
-requests
-line-bot-sdk
-openai
-numpy==1.21.0
+Flask==2.3.2
+gunicorn==21.2.0
+line-bot-sdk==1.5.1
+setuptools>=65.0.0
+wheel>=0.40.0
+build>=1.0.3
