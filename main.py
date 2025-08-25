@@ -37,11 +37,6 @@ my_prompt_text = """
 １：深く紐解く（通常モード）  
 ２：手軽な道しるべから（簡易モード）
 """
-
-)
-
-
-
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.environ["CHANNEL_ACCESS_TOKEN"])
 handler = WebhookHandler(os.environ["CHANNEL_SECRET"])
@@ -81,6 +76,7 @@ def health():
 @app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
+
 
 
 
