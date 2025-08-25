@@ -1,3 +1,8 @@
 line-bot-sdk
 flask
+gunicornflask
+python-dotenv
 gunicorn
+requests
+line-bot-sdk
+openai
