@@ -1,6 +1,6 @@
 line-bot-sdk
 flask
-gunicornflask
+gunicorn
 python-dotenv
 gunicorn
 requests
