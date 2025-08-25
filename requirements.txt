@@ -1,6 +1,6 @@
 Flask==2.3.2
 gunicorn==21.2.0
-line-bot-sdk==1.5.1
+line-bot-sdk==3.18.1
 setuptools>=65.0.0
 wheel>=0.40.0
 build>=1.0.3
