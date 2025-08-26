@@ -111,6 +111,9 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_message)
     )
+@app.route("/", methods=["GET", "HEAD"])
+def keep_alive():
+    return "語り部は目覚めています", 200
 
 
 
