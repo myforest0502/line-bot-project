@@ -4,15 +4,17 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-from openai import OpenAI  # ← 新API構文に対応
+from openai import OpenAI
 
-# ===== ログ設定 =====
+# ===== ロギング設定 =====
 logging.basicConfig(level=logging.INFO)
 
-# ===== OpenAI APIキー（Renderの環境変数で設定）=====
+# ===== OpenAI APIクライアントの初期化 =====
+# 新しいAPI構文では、クライアントインスタンスを作成して呼び出す
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=15)
 
 # ===== 語り部のベースプロンプト =====
+# この部分はナレーションとしてシステムメッセージで渡します
 my_prompt_text = """
 [ナレーション]
 「今、まさに歴史の扉を開けるのですね、社長。
@@ -31,8 +33,8 @@ my_prompt_text = """
 [モード選択]
 「それでは、あなたの物語を紐解く方法を選んでください。」
 
-０：初めからやり直す  
-１：深く紐解く（通常モード）  
+０：初めからやり直す
+１：深く紐解く（通常モード）
 ２：手軽な道しるべから（簡易モード）
 """
 
@@ -46,7 +48,7 @@ handler = WebhookHandler(os.environ["CHANNEL_SECRET"])
 def health():
     return "OK", 200
 
-@app.route("/", methods=["GET", "HEAD"])
+@app.route("/", methods=["GET"])
 def index():
     return "LINE Bot is running, 社長！"
 
@@ -72,26 +74,34 @@ def callback():
 def handle_message(event):
     user_message = event.message.text
 
-    # 1) プロンプトとユーザー発話を結合
-    combined_message = (
-        my_prompt_text
-        + "\n\n[ユーザーのメッセージ]\n"
-        + user_message
-    )
+    # 1) AIに渡すメッセージを役割ごとに正しく定義
+    # ここが最も重要な修正点です。
+    messages_to_ai = [
+        # あなたの語り部としての役割設定
+        {
+            "role": "system",
+            "content": "あなたは敬意と温度を保つ日本語の語り部。過度に長文にせず、具体的に導く。"
+        },
+        # ナレーション部分をシステムメッセージとして渡す
+        {
+            "role": "system",
+            "content": my_prompt_text
+        },
+        # ユーザーのメッセージをユーザーメッセージとして渡す
+        {
+            "role": "user",
+            "content": user_message
+        },
+    ]
 
     # 2) OpenAIで応答生成
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # 必要に応じて gpt-4 等へ
-            messages=[
-                {
-                    "role": "system",
-                    "content": "あなたは敬意と温度を保つ日本語の語り部。過度に長文にせず、具体的に導く。"
-                },
-                {"role": "user", "content": combined_message},
-            ],
+            model="gpt-3.5-turbo",
+            messages=messages_to_ai, # 正しく定義したメッセージリストを渡す
             temperature=0.8,
-            max_tokens=800
+            max_tokens=800,
+            timeout=15
         )
         reply_message = response.choices[0].message.content.strip()
     except Exception as e:
@@ -110,6 +120,11 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_message)
     )
+
+# ===== アプリケーションの実行 =====
+if __name__ == "__main__":
+    app.run()
+
 
 
 
