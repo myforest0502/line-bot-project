@@ -1,16 +1,16 @@
 import os
 import logging
-import openai
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from openai import OpenAI  # ← 新API構文に対応
 
 # ===== ログ設定 =====
 logging.basicConfig(level=logging.INFO)
 
 # ===== OpenAI APIキー（Renderの環境変数で設定）=====
-openai.api_key = os.environ["OPENAI_API_KEY"]
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=15)
 
 # ===== 語り部のベースプロンプト =====
 my_prompt_text = """
@@ -46,7 +46,7 @@ handler = WebhookHandler(os.environ["CHANNEL_SECRET"])
 def health():
     return "OK", 200
 
-@app.route("/", methods=["GET"])
+@app.route("/", methods=["GET", "HEAD"])
 def index():
     return "LINE Bot is running, 社長！"
 
@@ -79,9 +79,9 @@ def handle_message(event):
         + user_message
     )
 
-    # 2) OpenAIで応答生成（timeout 修正済み）
+    # 2) OpenAIで応答生成
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # 必要に応じて gpt-4 等へ
             messages=[
                 {
@@ -91,10 +91,9 @@ def handle_message(event):
                 {"role": "user", "content": combined_message},
             ],
             temperature=0.8,
-            max_tokens=800,
-            timeout=15  # ← 修正済み
+            max_tokens=800
         )
-        reply_message = response["choices"][0]["message"]["content"].strip()
+        reply_message = response.choices[0].message.content.strip()
     except Exception as e:
         logging.exception(e)
         reply_message = (
@@ -111,9 +110,6 @@ def handle_message(event):
         event.reply_token,
         TextSendMessage(text=reply_message)
     )
-@app.route("/", methods=["GET", "HEAD"])
-def keep_alive():
-    return "語り部は目覚めています", 200
 
 
 
