@@ -5,3 +5,4 @@ openai>=1.0.0
 setuptools>=65.0.0
 wheel>=0.40.0
 build>=1.0.3
+python-docx
