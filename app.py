@@ -16,7 +16,7 @@ from linebot.models import (
 
 from openai import OpenAI
 from docx import Document
-
+from pypdf import PdfReader
 
 # =========================================================
 # ロギング設定
