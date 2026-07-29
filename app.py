@@ -340,7 +340,7 @@ handler = WebhookHandler(
 
 # 最初は動作確認のため3問。
 # 一括出題と採点が完成したら30へ変更する。
-QUIZ_QUESTION_COUNT = 3
+QUIZ_QUESTION_COUNT = 30
 
 
 # ユーザーごとの現在の小テストを一時保存する。
