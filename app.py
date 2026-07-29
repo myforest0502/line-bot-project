@@ -653,6 +653,48 @@ def start_quiz(user_id):
 
     return quiz_messages
 
+# =========================================================
+# 小テストをバックグラウンドで生成・送信
+# =========================================================
+
+def prepare_and_send_quiz(user_id):
+    """
+    Webhookとは別の処理で問題を生成し、
+    完成後にLINEへプッシュ送信する。
+    """
+
+    try:
+        show_loading_animation(user_id)
+
+        quiz_messages = start_quiz(user_id)
+
+        for quiz_message in quiz_messages:
+            push_to_line(
+                user_id,
+                quiz_message,
+            )
+
+    except Exception:
+        logging.exception(
+            "Quiz background processing failed."
+        )
+
+        study_sessions.pop(
+            user_id,
+            None,
+        )
+
+        push_to_line(
+            user_id,
+            (
+                "おう、悪い。\n"
+                "問題を準備してる途中で、"
+                "源おじがズッコケた（笑）\n\n"
+                "少し待ってから、"
+                "もう一回「問題出して」って"
+                "送ってくれ。"
+            ),
+        )
 
 # =========================================================
 # 共通関数：LINEへ返信
@@ -1090,50 +1132,21 @@ def handle_text_message(event):
             event.reply_token,
             (
               "おう、任せろ＾＾\n"
-f"{QUIZ_QUESTION_COUNT}問作るから、ちょっと待ってな（笑）\n\n"
+"まず10問作るから、ちょっと待ってな（笑）\n\n"
 "ごめんな…俺も年だから、10問ずつしか出せねぇわｗ\n"
 "それじゃいくぞ＾＾"
             ),
         )
 
-        show_loading_animation(
-            user_id
+           quiz_thread = threading.Thread(
+            target=prepare_and_send_quiz,
+            args=(user_id,),
+            daemon=True,
         )
 
-        try:
-            quiz_messages = start_quiz(
-                user_id
-            )
+        quiz_thread.start()
 
-            for quiz_message in quiz_messages:
-                push_to_line(
-                    user_id,
-                    quiz_message,
-                )
-
-        except Exception:
-            logging.exception(
-                "Quiz start failed."
-            )
-
-            study_sessions.pop(
-                user_id,
-                None,
-            )
-
-            push_to_line(
-                user_id,
-                (
-                    "おう、悪い。\n"
-                    "問題を準備してる途中で、"
-                    "源おじがズッコケた（笑）\n\n"
-                    "少し待ってから、"
-                    "もう一回「問題出して」って"
-                    "送ってくれ。"
-                ),
-            )
-
-        return   
+        return
 
     # 小テスト中に何か送られてきた場合
     current_session = study_sessions.get(user_id)
