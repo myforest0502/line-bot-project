@@ -1,6 +1,7 @@
 import io
 import os
 import logging
+import base64
 
 from flask import Flask, request, abort
 
@@ -358,7 +359,74 @@ def download_line_file(message_id):
     file_buffer.seek(0)
 
     return file_buffer
+# =========================================================
+# 共通関数：画像をBase64へ変換
+# =========================================================
 
+
+
+def image_buffer_to_base64(file_buffer):
+    """
+    LINEから取得した画像をBase64文字列へ変換する。
+    """
+
+    file_buffer.seek(0)
+
+    image_bytes = file_buffer.read()
+
+    return base64.b64encode(image_bytes).decode("utf-8")
+# =========================================================
+# 共通関数：画像をOpenAIで分析
+# =========================================================
+
+def analyze_image(image_base64):
+    """
+    Base64形式の画像をOpenAIへ送り、
+    源おじとして内容を分析する。
+    """
+
+    response = client.responses.create(
+        model="gpt-4.1-mini",
+        instructions=GEN_OJI_PROMPT,
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "この画像を実際に確認してください。"
+                            "画像に書かれている文字、表、図、問題文、"
+                            "ノートやレポートの内容を可能な範囲で読み取り、"
+                            "源おじとして分かりやすく返答してください。"
+                            "読めない部分や不明な部分は、"
+                            "推測だけで断定しないでください。"
+                        ),
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": (
+                            "data:image/jpeg;base64,"
+                            + image_base64
+                        ),
+                        "detail": "auto",
+                    },
+                ],
+            }
+        ],
+        max_output_tokens=1200,
+    )
+
+    reply_message = response.output_text
+
+    if not reply_message:
+        return (
+            "おう、画像は見たぞ。"
+            "ただ、今回は内容をうまくまとめられなかった。"
+            "悪いが、もう一度送ってみてくれ（笑）"
+        )
+
+    return reply_message.strip()
 # =========================================================
 # 共通関数：PDFから文章を抽出
 # =========================================================
@@ -603,9 +671,9 @@ def handle_file_message(event):
         else:
             reply_message = (
                 "おう、ファイルは受け取ったぞ。\n\n"
-                "今のところ源おじが直接読めるのは、"
+                "今のところ源おじが直接読めるファイルは、"
                 "Wordの「.docx」とPDFの「.pdf」形式だ。\n\n"
-                "画像への対応は、もう少し待っててくれ（笑）"
+                "写真やスクショは、ファイルではなく画像として送ってくれ（笑）"
             )
 
         reply_to_line(
@@ -676,8 +744,8 @@ def handle_file_message(event):
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image_message(event):
     """
-    現段階では無言を防止する。
-    画像解析本体はWord、PDFの次に実装する。
+    LINEから画像を取得し、
+    OpenAIで内容を分析して返信する。
     """
 
     logging.info(
@@ -685,18 +753,39 @@ def handle_image_message(event):
         event.message.id,
     )
 
-    reply_message = (
-        "おう、画像はちゃんと受け取ったぞ。\n\n"
-        "ただ、今はWordを最優先で読めるようにしてるところだ。"
-        "次がPDF、その次が画像だ。\n\n"
-        "無視したわけじゃねぇから安心しろ（笑）"
-    )
+    try:
+        # LINEから画像本体を取得
+        image_buffer = download_line_file(
+            event.message.id
+        )
+
+        # 画像をBase64文字列へ変換
+        image_base64 = image_buffer_to_base64(
+            image_buffer
+        )
+
+        # OpenAIで画像を分析
+        reply_message = analyze_image(
+            image_base64
+        )
+
+    except Exception:
+        logging.exception(
+            "Image processing failed: message_id=%s",
+            event.message.id,
+        )
+
+        reply_message = (
+            "おう、画像は受け取ったぞ。\n\n"
+            "ただ、今回はうまく読み取れなかったみてぇだ。"
+            "少し時間を空けて、もう一度送ってみてくれ。\n\n"
+            "それでもダメなら、源おじの工事ミスだ（笑）"
+        )
 
     reply_to_line(
         event.reply_token,
         reply_message,
     )
-
 
 # =========================================================
 # アプリケーション実行
