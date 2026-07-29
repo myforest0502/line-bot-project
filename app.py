@@ -641,26 +641,26 @@ def start_quiz(user_id):
 
        questions = []
 
-    for batch_start in range(0, QUIZ_QUESTION_COUNT, 10):
-        batch_questions = generate_quiz_questions(10)
-
-        for question in batch_questions:
-            question["number"] += batch_start
-
-        questions.extend(batch_questions)
-
-    study_sessions[user_id] = {
-        "status": "waiting_for_answers",
-        "question_count": len(questions),
-        "questions": questions,
-        "answers": {},
-    }
-
-    quiz_messages = format_quiz_messages(
-        questions
-    )
-
-    return quiz_messages
+        for batch_start in range(0, QUIZ_QUESTION_COUNT, 10):
+            batch_questions = generate_quiz_questions(10)
+    
+            for question in batch_questions:
+                question["number"] += batch_start
+    
+            questions.extend(batch_questions)
+    
+        study_sessions[user_id] = {
+            "status": "waiting_for_answers",
+            "question_count": len(questions),
+            "questions": questions,
+            "answers": {},
+        }
+    
+        quiz_messages = format_quiz_messages(
+            questions
+        )
+    
+        return quiz_messages
 
 
 
