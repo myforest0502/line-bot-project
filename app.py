@@ -576,7 +576,11 @@ def handle_file_message(event):
     )
 
     # 現段階ではWordの.docxを最優先で対応
-    if not file_name_lower.endswith(".docx"):
+       # Word（.docx）とPDF（.pdf）は、この先で読み取る
+    if not (
+        file_name_lower.endswith(".docx")
+        or file_name_lower.endswith(".pdf")
+    ):
         if file_name_lower.endswith(".doc"):
             reply_message = (
                 "おう、ファイルは受け取ったぞ。\n\n"
@@ -587,21 +591,12 @@ def handle_file_message(event):
                 "もう一度送ってみてくれ（笑）"
             )
 
-        elif file_name_lower.endswith(".pdf"):
-            reply_message = (
-                "おう、PDFはちゃんと受け取ったぞ。\n\n"
-                "今はWordを最優先で工事してるところだ。"
-                "PDF対応はこの次に付けるから、"
-                "もう少しだけ待っててくれ（笑）"
-            )
-
         else:
             reply_message = (
                 "おう、ファイルは受け取ったぞ。\n\n"
                 "今のところ源おじが直接読めるのは、"
-                "Wordの「.docx」形式だ。\n\n"
-                "PDFは次、そのあと画像にも対応する予定だ。"
-                "街ってのは一軒ずつ建てるもんだからな（笑）"
+                "Wordの「.docx」とPDFの「.pdf」形式だ。\n\n"
+                "画像への対応は、もう少し待っててくれ（笑）"
             )
 
         reply_to_line(
@@ -612,23 +607,30 @@ def handle_file_message(event):
         return
 
     try:
-        # LINEからWordファイル本体を取得
-        word_file_buffer = download_line_file(
+        # LINEからファイル本体を取得
+        file_buffer = download_line_file(
             event.message.id
         )
 
-        # Word内の本文・表を抽出
-        document_text = extract_text_from_docx(
-            word_file_buffer
-        )
+        # ファイル形式に応じて文字を抽出
+        if file_name_lower.endswith(".pdf"):
+            document_text = extract_text_from_pdf(
+                file_buffer
+            )
+            file_type_name = "PDF"
+
+        else:
+            document_text = extract_text_from_docx(
+                file_buffer
+            )
+            file_type_name = "Word"
 
         if not document_text:
             reply_message = (
-                "おう、Wordは開けたぞ。\n\n"
+                f"おう、{file_type_name}は開けたぞ。\n\n"
                 "ただ、中から読める文字を見つけられなかった。"
-                "画像だけで作られた文書かもしれねぇな。\n\n"
-                "その場合は、画像対応ができたら読めるようになる。"
-                "今回は空振りだ、すまん（笑）"
+                "画像だけで作られたファイルかもしれねぇな。\n\n"
+                "その場合は画像解析対応まで、もう少し待っててくれ（笑）"
             )
 
         else:
@@ -640,14 +642,14 @@ def handle_file_message(event):
 
     except Exception:
         logging.exception(
-            "Word document processing failed: %s",
+            "Document processing failed: %s",
             file_name,
         )
 
         reply_message = (
-            "おう、Wordは受け取ったんだが、"
+            "おう、ファイルは受け取ったんだが、"
             "今回はうまく開けなかったみてぇだ。\n\n"
-            "ファイルが「.docx」形式になっているか確認して、"
+            "Wordは「.docx」、PDFは「.pdf」形式か確認して、"
             "もう一度送ってみてくれ。\n\n"
             "それでもダメなら、源おじの工事ミスだ（笑）"
         )
@@ -655,7 +657,7 @@ def handle_file_message(event):
     reply_to_line(
         event.reply_token,
         reply_message,
-    )
+    )    
 
 
 # =========================================================
