@@ -698,6 +698,45 @@ def prepare_and_send_quiz(user_id):
         )
 
 # =========================================================
+# 小テスト回答の読み取り
+# =========================================================
+
+def parse_quiz_answers(user_message):
+    """
+    例：
+    1:A1
+    2:C3
+
+    を読み取り、
+    問題番号・回答・自信度に分ける。
+    """
+
+    parsed_answers = {}
+
+    answer_pattern = re.compile(
+        r"^\s*(\d+)\s*[:：]\s*([A-Da-d])\s*([1-3])\s*$"
+    )
+
+    for line in user_message.splitlines():
+        if not line.strip():
+            continue
+
+        match = answer_pattern.match(line)
+
+        if not match:
+            continue
+
+        question_number = int(match.group(1))
+        selected_answer = match.group(2).upper()
+        confidence = match.group(3)
+
+        parsed_answers[question_number] = {
+            "answer": selected_answer,
+            "confidence": confidence,
+        }
+
+    return parsed_answers
+# =========================================================
 # 共通関数：LINEへ返信
 # =========================================================
 
@@ -1150,7 +1189,7 @@ def handle_text_message(event):
 
         return
 
-    # 小テスト中に何か送られてきた場合
+       # 小テスト中に回答が送られてきた場合
     current_session = study_sessions.get(user_id)
 
     if (
@@ -1158,17 +1197,40 @@ def handle_text_message(event):
         and current_session.get("status")
         == "waiting_for_answers"
     ):
+        parsed_answers = parse_quiz_answers(
+            user_message
+        )
+
+        if len(parsed_answers) != 10:
+            reply_to_line(
+                event.reply_token,
+                (
+                    "おう、回答は受け取ったぞ。\n\n"
+                    "ただ、10問分を正しく読み取れなかったみてぇだ。"
+                    "次の形で、1問目から10問目まで送ってくれ。\n\n"
+                    "1:A1\n"
+                    "2:B2\n"
+                    "3:C3\n"
+                    "...\n"
+                    "10:D1"
+                ),
+            )
+            return
+
+        current_session["all_answers"].update(
+            parsed_answers
+        )
+
         reply_to_line(
             event.reply_token,
             (
-                "おう、答えを受け取るところまでは来てるぞ。\n\n"
-                "ただ、今日はまず一括出題が"
-                "ちゃんと動くかの工事中だ（笑）\n"
-                "次に採点機能をつなげるから、少し待ってろ。"
+                "おう、10問分の回答を受け取ったぞ＾＾\n\n"
+                "答えと自信度も、ちゃんと保存できた。"
+                "次は採点につなげるからな（笑）"
             ),
         )
-        return
 
+        return
     # それ以外は、今までどおり普通に会話する
     try:
         reply_message = create_text_response(user_message)
