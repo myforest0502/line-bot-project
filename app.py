@@ -1126,19 +1126,20 @@ def handle_text_message(event):
         None,
     )
 
-    # 「問題出して」と言われたら小テストを開始する
+     # 「問題出して」と言われたら小テストを開始する
     if "問題出して" in user_message:
         reply_to_line(
             event.reply_token,
             (
-              "おう、任せろ＾＾\n"
-"まず10問作るから、ちょっと待ってな（笑）\n\n"
-"ごめんな…俺も年だから、10問ずつしか出せねぇわｗ\n"
-"それじゃいくぞ＾＾"
+                "おう、任せろ＾＾\n"
+                "まず10問作るから、ちょっと待ってな（笑）\n\n"
+                "ごめんな…俺も年だから、"
+                "10問ずつしか出せねぇわｗ\n"
+                "それじゃいくぞ＾＾"
             ),
         )
 
-           quiz_thread = threading.Thread(
+        quiz_thread = threading.Thread(
             target=prepare_and_send_quiz,
             args=(user_id,),
             daemon=True,
