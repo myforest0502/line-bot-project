@@ -579,7 +579,7 @@ def format_quiz_messages(questions):
         if (
             current_parts
             and (
-                questions_in_message >= 5
+                questions_in_message >= 10
                 or estimated_length > 1750
             )
         ):
@@ -1093,9 +1093,10 @@ def handle_text_message(event):
         reply_to_line(
             event.reply_token,
             (
-                "おう、任せろ＾＾\n"
-                f"{QUIZ_QUESTION_COUNT}問作るから、"
-                "ちょっと待ってな（笑）"
+               "おう、任せろ＾＾\n"
+　　　　　　　  f"{QUIZ_QUESTION_COUNT}問作るから、ちょっと待ってな（笑）\n\n"
+               "ごめんな…俺も年だから、10問ずつしか出せねぇわｗ\n"
+               "それじゃいくぞ＾＾"
             ),
         )
 
