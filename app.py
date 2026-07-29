@@ -630,8 +630,8 @@ def format_quiz_messages(questions):
 
 def start_quiz(user_id):
     """
-    AIで小テストを生成し、
-    ユーザーごとのセッションへ一時保存する。
+    最初の10問だけ生成し、
+    ユーザーごとのセッションへ保存する。
     """
 
     if not user_id:
@@ -639,26 +639,17 @@ def start_quiz(user_id):
             "小テストを開始するためのユーザーIDがありません。"
         )
 
-    questions = []
-
-    for batch_start in range(0, QUIZ_QUESTION_COUNT, 10):
-        batch_questions = generate_quiz_questions(10)
-
-        for question in batch_questions:
-            question["number"] += batch_start
-
-        questions.extend(batch_questions)
+    questions = generate_quiz_questions(10)
 
     study_sessions[user_id] = {
         "status": "waiting_for_answers",
-        "question_count": len(questions),
+        "current_set": 1,
+        "total_sets": 3,
         "questions": questions,
-        "answers": {},
+        "all_answers": {},
     }
 
-    quiz_messages = format_quiz_messages(
-        questions
-    )
+    quiz_messages = format_quiz_messages(questions)
 
     return quiz_messages
 
