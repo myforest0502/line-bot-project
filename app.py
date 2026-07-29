@@ -350,7 +350,30 @@ def download_line_file(message_id):
 
     return file_buffer
 
+# =========================================================
+# 共通関数：PDFから文章を抽出
+# =========================================================
 
+def extract_text_from_pdf(file_buffer):
+    """
+    PDFファイルから文字を抽出する。
+    """
+
+    reader = PdfReader(file_buffer)
+
+    extracted_parts = []
+
+    for page_number, page in enumerate(reader.pages, start=1):
+        page_text = page.extract_text()
+
+        if page_text:
+            extracted_parts.append(
+                f"\n【{page_number}ページ目】\n{page_text.strip()}"
+            )
+
+    extracted_text = "\n".join(extracted_parts).strip()
+
+    return extracted_text
 # =========================================================
 # 共通関数：Wordから文章と表を抽出
 # =========================================================
