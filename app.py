@@ -338,10 +338,16 @@ handler = WebhookHandler(
 # 学習セッション管理
 # =========================================================
 
-# 最初は動作確認のため3問。
-# 一括出題と採点が完成したら30へ変更する。
+# 1回の小テストで出題する問題数
 QUIZ_QUESTION_COUNT = 30
 
+
+# 回答時に使用する自信度
+CONFIDENCE_LEVELS = {
+    "1": "自信あり",
+    "2": "少し迷った",
+    "3": "あてずっぽう",
+}
 
 # ユーザーごとの現在の小テストを一時保存する。
 # Renderが再起動すると消えるため、これは試作版。
@@ -539,7 +545,116 @@ def generate_quiz_questions(question_count):
         )
 
     return cleaned_questions
+# =========================================================
+# 小テストをLINE送信用の文章に分割
+# =========================================================
 
+def format_quiz_messages(questions):
+    """
+    問題をLINEで読みやすい長さに分割する。
+    基本は5問ずつ送信する。
+    """
+
+    quiz_messages = []
+    current_parts = []
+    current_length = 0
+    questions_in_message = 0
+
+    for question_data in questions:
+        question_text = (
+            f"【第{question_data['number']}問】\n"
+            f"{question_data['question']}\n\n"
+            f"A. {question_data['choices']['A']}\n"
+            f"B. {question_data['choices']['B']}\n"
+            f"C. {question_data['choices']['C']}\n"
+            f"D. {question_data['choices']['D']}"
+        )
+
+        estimated_length = (
+            current_length
+            + len(question_text)
+            + 2
+        )
+
+        if (
+            current_parts
+            and (
+                questions_in_message >= 5
+                or estimated_length > 1750
+            )
+        ):
+            quiz_messages.append(
+                "\n\n".join(current_parts)
+            )
+
+            current_parts = []
+            current_length = 0
+            questions_in_message = 0
+
+        current_parts.append(question_text)
+        current_length += len(question_text) + 2
+        questions_in_message += 1
+
+    if current_parts:
+        quiz_messages.append(
+            "\n\n".join(current_parts)
+        )
+
+    instruction_message = (
+        f"以上で全{len(questions)}問だ＾＾\n\n"
+        "回答するときは、\n"
+        "「答え」と「自信度」をセットで送ってくれ。\n\n"
+        "【入力例】\n"
+        "1:A1\n"
+        "2:C3\n"
+        "3:B2\n\n"
+        "【自信度】\n"
+        "1＝自信あり\n"
+        "2＝少し迷った\n"
+        "3＝あてずっぽう\n\n"
+        "つまり「A1」なら、\n"
+        "答えはA、自信ありって意味だ。\n\n"
+        f"{len(questions)}問分をまとめて送ってくれ（笑）"
+    )
+
+    quiz_messages.append(
+        instruction_message
+    )
+
+    return quiz_messages
+
+
+# =========================================================
+# 小テスト開始
+# =========================================================
+
+def start_quiz(user_id):
+    """
+    AIで小テストを生成し、
+    ユーザーごとのセッションへ一時保存する。
+    """
+
+    if not user_id:
+        raise ValueError(
+            "小テストを開始するためのユーザーIDがありません。"
+        )
+
+    questions = generate_quiz_questions(
+        QUIZ_QUESTION_COUNT
+    )
+
+    study_sessions[user_id] = {
+        "status": "waiting_for_answers",
+        "question_count": len(questions),
+        "questions": questions,
+        "answers": {},
+    }
+
+    quiz_messages = format_quiz_messages(
+        questions
+    )
+
+    return quiz_messages
 
 
 
@@ -975,37 +1090,53 @@ def handle_text_message(event):
 
     # 「問題出して」と言われたら小テストを開始する
     if "問題出して" in user_message:
+        reply_to_line(
+            event.reply_token,
+            (
+                "おう、任せろ＾＾\n"
+                f"{QUIZ_QUESTION_COUNT}問作るから、"
+                "ちょっと待ってな（笑）"
+            ),
+        )
+
+        show_loading_animation(
+            user_id
+        )
+
         try:
-            introduction_message, quiz_message = start_quiz(
+            quiz_messages = start_quiz(
                 user_id
             )
 
-            # まず開始の言葉を通常返信
-            reply_to_line(
-                event.reply_token,
-                introduction_message,
-            )
-
-            # 問題は続けてPush送信
-            push_to_line(
-                user_id,
-                quiz_message,
-            )
+            for quiz_message in quiz_messages:
+                push_to_line(
+                    user_id,
+                    quiz_message,
+                )
 
         except Exception:
-            logging.exception("Quiz start failed.")
+            logging.exception(
+                "Quiz start failed."
+            )
 
-            reply_to_line(
-                event.reply_token,
+            study_sessions.pop(
+                user_id,
+                None,
+            )
+
+            push_to_line(
+                user_id,
                 (
                     "おう、悪い。\n"
                     "問題を準備してる途中で、"
-                    "源おじがズッコケた（笑）\n"
-                    "もう一回「問題出して」って送ってくれ。"
+                    "源おじがズッコケた（笑）\n\n"
+                    "少し待ってから、"
+                    "もう一回「問題出して」って"
+                    "送ってくれ。"
                 ),
             )
 
-        return
+        return   
 
     # 小テスト中に何か送られてきた場合
     current_session = study_sessions.get(user_id)
