@@ -4,7 +4,7 @@ import logging
 import base64
 import json
 import urllib.request
-
+import re
 from flask import Flask, request, abort
 
 from linebot import LineBotApi, WebhookHandler
@@ -334,7 +334,132 @@ line_bot_api = LineBotApi(
 handler = WebhookHandler(
     os.environ["CHANNEL_SECRET"]
 )
+# =========================================================
+# 学習セッション管理
+# =========================================================
 
+# 最初は動作確認のため3問。
+# 一括出題と採点が完成したら30へ変更する。
+QUIZ_QUESTION_COUNT = 3
+
+
+# ユーザーごとの現在の小テストを一時保存する。
+# Renderが再起動すると消えるため、これは試作版。
+study_sessions = {}
+
+
+# 動作確認用の問題
+TEST_QUIZ_QUESTIONS = [
+    {
+        "number": 1,
+        "question": "正常歩行において、立脚期に含まれるのはどれか。",
+        "choices": {
+            "A": "初期接地",
+            "B": "遊脚中期",
+            "C": "遊脚終期",
+            "D": "初期遊脚",
+        },
+        "correct_answer": "A",
+        "explanation": (
+            "初期接地は、踵などが床に接触して立脚期が始まる瞬間だからだ。"
+            "一方、遊脚中期・遊脚終期・初期遊脚は、足が床から離れている遊脚期に含まれる。"
+        ),
+        "category": "運動学・歩行",
+    },
+    {
+        "number": 2,
+        "question": "トレンデレンブルグ徴候に最も関係する筋はどれか。",
+        "choices": {
+            "A": "大殿筋",
+            "B": "中殿筋",
+            "C": "大腿四頭筋",
+            "D": "前脛骨筋",
+        },
+        "correct_answer": "B",
+        "explanation": (
+            "中殿筋は立脚側の骨盤を支える働きがある。"
+            "中殿筋の筋力が低下すると、反対側の骨盤が下がるため、"
+            "トレンデレンブルグ徴候が現れる。"
+        ),
+        "category": "筋機能・歩行",
+    },
+    {
+        "number": 3,
+        "question": "脳性麻痺の特徴として適切なのはどれか。",
+        "choices": {
+            "A": "進行性の脳病変である",
+            "B": "成人期にのみ発症する",
+            "C": "非進行性の脳病変による",
+            "D": "末梢神経障害のみで起こる",
+        },
+        "correct_answer": "C",
+        "explanation": (
+            "脳性麻痺は、発達途中の脳に生じた非進行性の病変による"
+            "運動・姿勢の障害である。"
+            "症状の現れ方は成長に伴って変化することがあるが、"
+            "原因となる脳病変自体が進行する病気ではない。"
+        ),
+        "category": "小児",
+    },
+]
+
+
+def format_quiz_questions(questions):
+    """
+    問題だけをLINE用の文章に整える。
+    正答と解説は表示しない。
+    """
+
+    question_blocks = []
+
+    for question_data in questions:
+        number = question_data["number"]
+        question_text = question_data["question"]
+        choices = question_data["choices"]
+
+        block = (
+            f"【第{number}問】\n"
+            f"{question_text}\n\n"
+            f"A．{choices['A']}\n"
+            f"B．{choices['B']}\n"
+            f"C．{choices['C']}\n"
+            f"D．{choices['D']}"
+        )
+
+        question_blocks.append(block)
+
+    return "\n\n──────────\n\n".join(question_blocks)
+
+
+def start_quiz(user_id):
+    """
+    小テストを開始し、
+    問題・正答・解説をユーザーごとに保存する。
+    """
+
+    questions = TEST_QUIZ_QUESTIONS[:QUIZ_QUESTION_COUNT]
+
+    study_sessions[user_id] = {
+        "status": "waiting_for_answers",
+        "question_count": len(questions),
+        "questions": questions,
+        "answers": {},
+    }
+
+    introduction_message = (
+        "おう、今日も始めるか（笑）\n"
+        f"今のお前はレベル1だから、今日は{len(questions)}問だ。\n"
+        "じゃあいくぞ。"
+    )
+
+    quiz_message = (
+        format_quiz_questions(questions)
+        + "\n\n──────────\n\n"
+        + "全部解き終わったら、答えをまとめて送ってくれ。\n"
+        + "例：1A○ 2C△ 3B×"
+    )
+
+    return introduction_message, quiz_message
 
 # =========================================================
 # 共通関数：LINEへ返信
@@ -760,6 +885,66 @@ def handle_text_message(event):
     if not user_message:
         return
 
+    user_id = getattr(
+        event.source,
+        "user_id",
+        None,
+    )
+
+    # 「問題出して」と言われたら小テストを開始する
+    if "問題出して" in user_message:
+        try:
+            introduction_message, quiz_message = start_quiz(
+                user_id
+            )
+
+            # まず開始の言葉を通常返信
+            reply_to_line(
+                event.reply_token,
+                introduction_message,
+            )
+
+            # 問題は続けてPush送信
+            push_to_line(
+                user_id,
+                quiz_message,
+            )
+
+        except Exception:
+            logging.exception("Quiz start failed.")
+
+            reply_to_line(
+                event.reply_token,
+                (
+                    "おう、悪い。\n"
+                    "問題を準備してる途中で、"
+                    "源おじがズッコケた（笑）\n"
+                    "もう一回「問題出して」って送ってくれ。"
+                ),
+            )
+
+        return
+
+    # 小テスト中に何か送られてきた場合
+    current_session = study_sessions.get(user_id)
+
+    if (
+        current_session
+        and current_session.get("status")
+        == "waiting_for_answers"
+    ):
+        reply_to_line(
+            event.reply_token,
+            (
+                "おう、答えを受け取るところまでは来てるぞ。\n\n"
+                "ただ、今日はまず一括出題が"
+                "ちゃんと動くかの工事中だ（笑）\n"
+                "次に採点機能をつなげるから、少し待ってろ。"
+            ),
+        )
+        return
+
+    # それ以外は、今までどおり普通に会話する
     try:
         reply_message = create_text_response(user_message)
 
