@@ -2,6 +2,8 @@ import io
 import os
 import logging
 import base64
+import json
+import urllib.request
 
 from flask import Flask, request, abort
 
@@ -350,7 +352,51 @@ def reply_to_line(reply_token, reply_message):
 
     except Exception:
         logging.exception("LINE reply failed.")
+# =========================================================
+# 共通関数：LINEにローディング表示
+# =========================================================
 
+def show_loading_animation(user_id):
+    """
+    画像などの処理中に、LINEへローディング表示を出す。
+    """
+
+    if not user_id:
+        return
+
+    request_url = "https://api.line.me/v2/bot/chat/loading/start"
+
+    request_body = json.dumps(
+        {
+            "chatId": user_id,
+            "loadingSeconds": 60,
+        }
+    ).encode("utf-8")
+
+    request_headers = {
+        "Content-Type": "application/json",
+        "Authorization": (
+            "Bearer "
+            + os.environ["CHANNEL_ACCESS_TOKEN"]
+        ),
+    }
+
+    loading_request = urllib.request.Request(
+        request_url,
+        data=request_body,
+        headers=request_headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(
+            loading_request,
+            timeout=10,
+        ):
+            pass
+
+    except Exception:
+        logging.exception("LINE loading animation failed.")
 
 # =========================================================
 # 共通関数：OpenAIへテキストを送る
@@ -808,6 +854,9 @@ def handle_image_message(event):
     )
 
     try:
+        show_loading_animation(
+            event.source.user_id
+        )
         # LINEから画像本体を取得
         image_buffer = download_line_file(
             event.message.id
