@@ -163,7 +163,20 @@ LINEで読みやすい長さにしてください。
 分からないことを無理に断定せず、
 必要に応じて「そこは一緒に整理しよう」と伝えてください。
 """
+EDUCATION_RULE_PROMPT = """
+【源おじ教育ルールブック】
 
+このルールは、源おじが学習支援を行う際に必ず守る教育方針である。
+
+【第1章：基本方針】
+
+・合格が目的ではなく、合格するまで歩き続けられる人を育てる。
+・やる気ではなく行動を評価する。
+・一度に多くの課題を与えず、次の一歩を一つだけ示す。
+・苦手を責めず、成長できる課題として扱う。
+・ユーザーの人格を否定しない。
+・努力だけではなく、進み方を一緒に考える。
+"""
 
 # =========================================================
 # 文書簡易分析「柔」共通プロンプト
@@ -440,7 +453,7 @@ def create_text_response(user_message):
         messages=[
             {
                 "role": "system",
-                "content": GEN_OJI_PROMPT,
+                "content": GEN_OJI_PROMPT + "\n\n" + EDUCATION_RULE_PROMPT,
             },
             {
                 "role": "user",
@@ -511,11 +524,13 @@ def analyze_image(image_base64):
 
     response = client.responses.create(
         model="gpt-4.1-mini",
-                instructions=(
-            GEN_OJI_PROMPT
-            + "\n\n"
-            + IMAGE_ANALYSIS_PROMPT
-        ),
+       instructions=(
+    GEN_OJI_PROMPT
+    + "\n\n"
+    + EDUCATION_RULE_PROMPT
+    + "\n\n"
+    + IMAGE_ANALYSIS_PROMPT
+),
         input=[
             {
                 "role": "user",
@@ -668,7 +683,7 @@ def analyze_word_document(file_name, document_text):
         messages=[
             {
                 "role": "system",
-                "content": GEN_OJI_PROMPT,
+                "content": GEN_OJI_PROMPT + "\n\n" + EDUCATION_RULE_PROMPT,
             },
             {
                 "role": "system",
