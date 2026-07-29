@@ -348,118 +348,200 @@ QUIZ_QUESTION_COUNT = 30
 study_sessions = {}
 
 
-# 動作確認用の問題
-TEST_QUIZ_QUESTIONS = [
-    {
-        "number": 1,
-        "question": "正常歩行において、立脚期に含まれるのはどれか。",
-        "choices": {
-            "A": "初期接地",
-            "B": "遊脚中期",
-            "C": "遊脚終期",
-            "D": "初期遊脚",
-        },
-        "correct_answer": "A",
-        "explanation": (
-            "初期接地は、踵などが床に接触して立脚期が始まる瞬間だからだ。"
-            "一方、遊脚中期・遊脚終期・初期遊脚は、足が床から離れている遊脚期に含まれる。"
-        ),
-        "category": "運動学・歩行",
-    },
-    {
-        "number": 2,
-        "question": "トレンデレンブルグ徴候に最も関係する筋はどれか。",
-        "choices": {
-            "A": "大殿筋",
-            "B": "中殿筋",
-            "C": "大腿四頭筋",
-            "D": "前脛骨筋",
-        },
-        "correct_answer": "B",
-        "explanation": (
-            "中殿筋は立脚側の骨盤を支える働きがある。"
-            "中殿筋の筋力が低下すると、反対側の骨盤が下がるため、"
-            "トレンデレンブルグ徴候が現れる。"
-        ),
-        "category": "筋機能・歩行",
-    },
-    {
-        "number": 3,
-        "question": "脳性麻痺の特徴として適切なのはどれか。",
-        "choices": {
-            "A": "進行性の脳病変である",
-            "B": "成人期にのみ発症する",
-            "C": "非進行性の脳病変による",
-            "D": "末梢神経障害のみで起こる",
-        },
-        "correct_answer": "C",
-        "explanation": (
-            "脳性麻痺は、発達途中の脳に生じた非進行性の病変による"
-            "運動・姿勢の障害である。"
-            "症状の現れ方は成長に伴って変化することがあるが、"
-            "原因となる脳病変自体が進行する病気ではない。"
-        ),
-        "category": "小児",
-    },
-]
+# =========================================================
+# AIによる小テスト生成
+# =========================================================
 
-
-def format_quiz_questions(questions):
+def generate_quiz_questions(question_count):
     """
-    問題だけをLINE用の文章に整える。
-    正答と解説は表示しない。
+    OpenAIを使って、
+    理学療法士国家試験対策の4択問題を生成する。
     """
 
-    question_blocks = []
+    generation_prompt = f"""
+理学療法士国家試験を受験する学生向けに、
+オリジナルの4択問題を{question_count}問作成してください。
 
-    for question_data in questions:
-        number = question_data["number"]
-        question_text = question_data["question"]
-        choices = question_data["choices"]
+【必ず守る条件】
+・既存の国家試験問題をそのまま複製しない
+・選択肢は必ずA、B、C、Dの4つ
+・正解は必ず1つだけ
+・問題文や選択肢に正解を表示しない
+・各問題に正答の理由を説明する解説を付ける
+・可能であれば、間違いやすい選択肢との違いも説明する
+・基礎問題、標準問題、応用問題を含める
+・問題番号は1から{question_count}まで付ける
 
-        block = (
-            f"【第{number}問】\n"
-            f"{question_text}\n\n"
-            f"A．{choices['A']}\n"
-            f"B．{choices['B']}\n"
-            f"C．{choices['C']}\n"
-            f"D．{choices['D']}"
+【出題分野】
+・解剖学
+・生理学
+・運動学
+・病理学
+・内科学
+・神経内科学
+・整形外科学
+・小児科学
+・老年学
+・評価学
+・理学療法治療学
+・歩行分析
+・地域理学療法
+・制度、介護保険
+
+必ず次のJSON形式だけで返してください。
+
+{{
+  "questions": [
+    {{
+      "number": 1,
+      "question": "問題文",
+      "choices": {{
+        "A": "選択肢A",
+        "B": "選択肢B",
+        "C": "選択肢C",
+        "D": "選択肢D"
+      }},
+      "correct_answer": "A",
+      "explanation": "なぜAが正解なのかを説明する文章",
+      "category": "分野名",
+      "difficulty": "基礎"
+    }}
+  ]
+}}
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "あなたは理学療法士国家試験対策の"
+                    "問題作成担当者です。"
+                    "医学的に正確で、正答が一つに定まる"
+                    "オリジナル問題を作成してください。"
+                    "必ずJSONだけを出力してください。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": generation_prompt,
+            },
+        ],
+        response_format={
+            "type": "json_object"
+        },
+        temperature=0.7,
+        max_tokens=10000,
+    )
+
+    response_text = response.choices[0].message.content
+
+    if not response_text:
+        raise ValueError(
+            "問題生成結果が空でした。"
         )
 
-        question_blocks.append(block)
+    quiz_data = json.loads(response_text)
 
-    return "\n\n──────────\n\n".join(question_blocks)
-
-
-def start_quiz(user_id):
-    """
-    小テストを開始し、
-    問題・正答・解説をユーザーごとに保存する。
-    """
-
-    questions = TEST_QUIZ_QUESTIONS[:QUIZ_QUESTION_COUNT]
-
-    study_sessions[user_id] = {
-        "status": "waiting_for_answers",
-        "question_count": len(questions),
-        "questions": questions,
-        "answers": {},
-    }
-
-    introduction_message = (
-        "おう、今日も始めるか（笑）\n"
-        f"今のお前はレベル1だから、今日は{len(questions)}問だ。\n"
-        "じゃあいくぞ。"
+    questions = quiz_data.get(
+        "questions",
+        [],
     )
 
-    quiz_message = (
-        format_quiz_questions(questions)
-        + "\n\n──────────\n\n"
-        + "全部解き終わったら、答えをまとめて送ってくれ。\n"
-        + "例：1A○ 2C△ 3B×"
-    )
+    if len(questions) != question_count:
+        raise ValueError(
+            f"{question_count}問を要求しましたが、"
+            f"{len(questions)}問しか生成されませんでした。"
+        )
 
-    return introduction_message, quiz_message
+    cleaned_questions = []
+
+    for index, question_data in enumerate(
+        questions,
+        start=1,
+    ):
+        choices = question_data.get(
+            "choices",
+            {},
+        )
+
+        correct_answer = str(
+            question_data.get(
+                "correct_answer",
+                "",
+            )
+        ).upper().strip()
+
+        if not question_data.get("question"):
+            raise ValueError(
+                f"第{index}問の問題文がありません。"
+            )
+
+        if not all(
+            key in choices
+            for key in ["A", "B", "C", "D"]
+        ):
+            raise ValueError(
+                f"第{index}問の選択肢が不足しています。"
+            )
+
+        if correct_answer not in [
+            "A",
+            "B",
+            "C",
+            "D",
+        ]:
+            raise ValueError(
+                f"第{index}問の正答が不正です。"
+            )
+
+        cleaned_questions.append(
+            {
+                "number": index,
+                "question": str(
+                    question_data["question"]
+                ).strip(),
+                "choices": {
+                    "A": str(
+                        choices["A"]
+                    ).strip(),
+                    "B": str(
+                        choices["B"]
+                    ).strip(),
+                    "C": str(
+                        choices["C"]
+                    ).strip(),
+                    "D": str(
+                        choices["D"]
+                    ).strip(),
+                },
+                "correct_answer": correct_answer,
+                "explanation": str(
+                    question_data.get(
+                        "explanation",
+                        "",
+                    )
+                ).strip(),
+                "category": str(
+                    question_data.get(
+                        "category",
+                        "未分類",
+                    )
+                ).strip(),
+                "difficulty": str(
+                    question_data.get(
+                        "difficulty",
+                        "標準",
+                    )
+                ).strip(),
+            }
+        )
+
+    return cleaned_questions
+
+
+
 
 # =========================================================
 # 共通関数：LINEへ返信
