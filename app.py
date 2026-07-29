@@ -353,6 +353,34 @@ def reply_to_line(reply_token, reply_message):
     except Exception:
         logging.exception("LINE reply failed.")
 # =========================================================
+# 共通関数：LINEへPush送信
+# =========================================================
+
+def push_to_line(user_id, push_message):
+
+    if not user_id:
+        logging.error("User ID not found.")
+        return
+
+    if not push_message:
+        push_message = (
+            "おう、うまく送れなかったみてぇだ。"
+        )
+
+    if len(push_message) > 1900:
+        push_message = push_message[:1900] + "…"
+
+    try:
+        line_bot_api.push_message(
+            user_id,
+            TextSendMessage(text=push_message),
+        )
+
+    except Exception:
+        logging.exception(
+            "LINE push failed."
+        )
+# =========================================================
 # 共通関数：LINEにローディング表示
 # =========================================================
 
@@ -742,7 +770,6 @@ def handle_text_message(event):
 @handler.add(MessageEvent, message=FileMessage)
 def handle_file_message(event):
     file_name = event.message.file_name or "添付ファイル"
-
     file_name_lower = file_name.lower()
 
     logging.info(
@@ -752,8 +779,13 @@ def handle_file_message(event):
         event.message.id,
     )
 
-    # 現段階ではWordの.docxを最優先で対応
-       # Word（.docx）とPDF（.pdf）は、この先で読み取る
+    user_id = getattr(
+        event.source,
+        "user_id",
+        None,
+    )
+
+    # 対応外のファイルは、これまで通りその場で返信する
     if not (
         file_name_lower.endswith(".docx")
         or file_name_lower.endswith(".pdf")
@@ -773,15 +805,26 @@ def handle_file_message(event):
                 "おう、ファイルは受け取ったぞ。\n\n"
                 "今のところ源おじが直接読めるファイルは、"
                 "Wordの「.docx」とPDFの「.pdf」形式だ。\n\n"
-                "写真やスクショは、ファイルではなく画像として送ってくれ（笑）"
+                "写真やスクショは、"
+                "ファイルではなく画像として送ってくれ（笑）"
             )
 
         reply_to_line(
             event.reply_token,
             reply_message,
         )
-
         return
+
+    # Word・PDFは、まず源おじの相づちを即返信
+    reply_to_line(
+        event.reply_token,
+        (
+            "おっ、書類が来たな（笑）\n"
+            "ちゃんと読むから、ちょっと待ってろ。"
+        ),
+    )
+
+    show_loading_animation(user_id)
 
     try:
         # LINEからファイル本体を取得
@@ -803,16 +846,15 @@ def handle_file_message(event):
             file_type_name = "Word"
 
         if not document_text:
-            reply_message = (
+            analysis_message = (
                 f"おう、{file_type_name}は開けたぞ。\n\n"
                 "ただ、中から読める文字を見つけられなかった。"
                 "画像だけで作られたファイルかもしれねぇな。\n\n"
-                "その場合は画像解析対応まで、もう少し待っててくれ（笑）"
+                "その場合は、ページを画像として送ってみてくれ（笑）"
             )
 
         else:
-            # 源おじによる簡易分析「柔」
-            reply_message = analyze_word_document(
+            analysis_message = analyze_word_document(
                 file_name=file_name,
                 document_text=document_text,
             )
@@ -823,7 +865,7 @@ def handle_file_message(event):
             file_name,
         )
 
-        reply_message = (
+        analysis_message = (
             "おう、ファイルは受け取ったんだが、"
             "今回はうまく開けなかったみてぇだ。\n\n"
             "Wordは「.docx」、PDFは「.pdf」形式か確認して、"
@@ -831,11 +873,11 @@ def handle_file_message(event):
             "それでもダメなら、源おじの工事ミスだ（笑）"
         )
 
-    reply_to_line(
-        event.reply_token,
-        reply_message,
-    )    
-
+    # 分析結果は後からプッシュ送信
+    push_to_line(
+        user_id,
+        analysis_message,
+    )
 
 # =========================================================
 # 画像メッセージ
@@ -844,8 +886,8 @@ def handle_file_message(event):
 @handler.add(MessageEvent, message=ImageMessage)
 def handle_image_message(event):
     """
-    LINEから画像を取得し、
-    OpenAIで内容を分析して返信する。
+    画像を受け取ったら先に相づちを返し、
+    その後、分析結果をプッシュ送信する。
     """
 
     logging.info(
@@ -853,22 +895,33 @@ def handle_image_message(event):
         event.message.id,
     )
 
+    user_id = getattr(
+        event.source,
+        "user_id",
+        None,
+    )
+
+    # まず源おじの相づちを即返信
+    reply_to_line(
+        event.reply_token,
+        (
+            "おっ、写真が来たな（笑）\n"
+            "しっかり見るから、ちょっと待ってろ。"
+        ),
+    )
+
+    show_loading_animation(user_id)
+
     try:
-        show_loading_animation(
-            event.source.user_id
-        )
-        # LINEから画像本体を取得
         image_buffer = download_line_file(
             event.message.id
         )
 
-        # 画像をBase64文字列へ変換
         image_base64 = image_buffer_to_base64(
             image_buffer
         )
 
-        # OpenAIで画像を分析
-        reply_message = analyze_image(
+        analysis_message = analyze_image(
             image_base64
         )
 
@@ -878,18 +931,17 @@ def handle_image_message(event):
             event.message.id,
         )
 
-        reply_message = (
-            "おう、画像は受け取ったぞ。\n\n"
-            "ただ、今回はうまく読み取れなかったみてぇだ。"
+        analysis_message = (
+            "おう、画像は受け取ったんだが、\n\n"
+            "今回はうまく読み取れなかったみてぇだ。"
             "少し時間を空けて、もう一度送ってみてくれ。\n\n"
             "それでもダメなら、源おじの工事ミスだ（笑）"
         )
 
-    reply_to_line(
-        event.reply_token,
-        reply_message,
+    push_to_line(
+        user_id,
+        analysis_message,
     )
-
 # =========================================================
 # アプリケーション実行
 # =========================================================
