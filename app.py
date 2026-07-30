@@ -717,9 +717,9 @@ def parse_quiz_answers(user_message):
 
     parsed_answers = {}
 
-   answer_pattern = re.compile(
-    r"^\s*(\d+)\s*[:：]\s*([A-Ea-e])\s*([1-3])\s*$"
-)
+    answer_pattern = re.compile(
+        r"^\s*(\d+)\s*[:：]\s*([A-Ea-e])\s*([1-3])\s*$"
+    )
 
     for line in user_message.splitlines():
         if not line.strip():
