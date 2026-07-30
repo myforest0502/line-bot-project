@@ -179,7 +179,8 @@ EDUCATION_RULE_PROMPT = """
 ・ユーザーの人格を否定しない。
 ・努力だけではなく、進み方を一緒に考える。
 """
-
+# ユーザーごとの現在の会話状態を保存する
+user_states = {}
 # =========================================================
 # 文書簡易分析「柔」共通プロンプト
 # =========================================================
@@ -1270,7 +1271,31 @@ def handle_text_message(event):
         "user_id",
         None,
     )
+    # 現在の会話状態を取得する
+    current_state = user_states.get(user_id)
+     # 「問題出して」と言われたら小テストを開始する
+    # 「休み」「休む」などが含まれていたら、問題を始めずAIモードへ
+    rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
 
+    if any(word in user_message for word in rest_words):
+        reply_to_line(
+            event.reply_token,
+            "どした？何かあったんか？"
+        )
+        return
+    # 初回メッセージなら、固定の第一声を返して準備待ちにする
+    if current_state is None:
+        user_states[user_id] = "waiting_ready"
+
+        reply_to_line(
+            event.reply_token,
+            (
+                "お！きたなｗおつかれさん＾＾\n"
+                "話したい事もあるだろうが、まずは問題からだ\n"
+                "準備はいいか？"
+            )
+        )
+        return    
      # 「問題出して」と言われたら小テストを開始する
     if "問題出して" in user_message:
         reply_to_line(
