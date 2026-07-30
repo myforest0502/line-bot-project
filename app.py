@@ -1294,7 +1294,7 @@ def handle_text_message(event):
 
         return
 
-       # 小テスト中に回答が送られてきた場合
+     # 小テスト中に回答が送られてきた場合
     current_session = study_sessions.get(user_id)
 
     if (
@@ -1317,34 +1317,36 @@ def handle_text_message(event):
                     "2:B2\n"
                     "3:C3\n"
                     "...\n"
-                    "10:D1"
+                    "10:E1"
                 ),
             )
             return
 
-    current_session["all_answers"].update(
-    parsed_answers
-)
+        current_session["all_answers"].update(
+            parsed_answers
+        )
 
-result_messages = create_quiz_result_messages(
-    current_session["questions"],
-    parsed_answers,
-)
+        result_messages = create_quiz_result_messages(
+            current_session["questions"],
+            parsed_answers,
+        )
 
-current_session["status"] = "completed"
+        current_session["status"] = "completed"
 
-reply_to_line(
-    event.reply_token,
-    result_messages[0],
-)
+        reply_to_line(
+            event.reply_token,
+            result_messages[0],
+        )
 
-for result_message in result_messages[1:]:
-    push_to_line(
-        user_id,
-        result_message,
-    )
+        for result_message in result_messages[1:]:
+            push_to_line(
+                user_id,
+                result_message,
+            )
 
         return
+
+    # それ以外は、今までどおり普通に会話する
 
     # それ以外は、今までどおり普通に会話する
     try:
