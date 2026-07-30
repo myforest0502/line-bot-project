@@ -354,7 +354,7 @@ def load_question_master():
     with open(
         QUESTIONS_FILE_PATH,
         "r",
-        encoding="utf-8"
+        encoding="utf-16"
     ) as file:
         data = json.load(file)
 
