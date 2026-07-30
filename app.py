@@ -6,6 +6,7 @@ import base64
 import json
 import urllib.request
 import re
+import random
 from flask import Flask, request, abort
 
 from linebot import LineBotApi, WebhookHandler
@@ -341,7 +342,36 @@ handler = WebhookHandler(
 
 # 1回の小テストで出題する問題数
 QUIZ_QUESTION_COUNT = 30
+# 問題倉庫JSON
+QUESTIONS_FILE_PATH = "questions_master.json"
 
+
+def load_question_master():
+    """
+    questions_master.json から問題一覧を読み込む
+    """
+
+    with open(
+        QUESTIONS_FILE_PATH,
+        "r",
+        encoding="utf-8"
+    ) as file:
+        data = json.load(file)
+
+    return data["questions"]
+
+
+def select_random_questions(question_count):
+    """
+    問題倉庫からランダムに取得
+    """
+
+    questions = load_question_master()
+
+    return random.sample(
+        questions,
+        question_count
+    )
 
 # 回答時に使用する自信度
 CONFIDENCE_LEVELS = {
@@ -552,63 +582,37 @@ def generate_quiz_questions(question_count):
 
 def format_quiz_messages(questions):
     """
-    問題をLINEで読みやすい長さに分割する。
-    基本は5問ずつ送信する。
+    選ばれた10問を、1通の文章にまとめる。
     """
 
-    quiz_messages = []
-    current_parts = []
-    current_length = 0
-    questions_in_message = 0
+    question_parts = []
 
-    for question_data in questions:
+    for display_number, question_data in enumerate(
+        questions,
+        start=1,
+    ):
+        choices = question_data["choices"]
+
         question_text = (
-            f"【第{question_data['number']}問】\n"
+            f"【第{display_number}問】\n"
             f"{question_data['question']}\n\n"
-            f"A. {question_data['choices']['A']}\n"
-            f"B. {question_data['choices']['B']}\n"
-            f"C. {question_data['choices']['C']}\n"
-            f"D. {question_data['choices']['D']}"
+            f"A. {choices['A']}\n"
+            f"B. {choices['B']}\n"
+            f"C. {choices['C']}\n"
+            f"D. {choices['D']}\n"
+            f"E. {choices['E']}"
         )
 
-        estimated_length = (
-            current_length
-            + len(question_text)
-            + 2
-        )
-
-        if (
-            current_parts
-            and (
-                questions_in_message >= 10
-                or estimated_length > 1750
-            )
-        ):
-            quiz_messages.append(
-                "\n\n".join(current_parts)
-            )
-
-            current_parts = []
-            current_length = 0
-            questions_in_message = 0
-
-        current_parts.append(question_text)
-        current_length += len(question_text) + 2
-        questions_in_message += 1
-
-    if current_parts:
-        quiz_messages.append(
-            "\n\n".join(current_parts)
-        )
+        question_parts.append(question_text)
 
     instruction_message = (
-        f"以上で全{len(questions)}問だ＾＾\n\n"
+        f"\n\n以上で全{len(questions)}問だ＾＾\n\n"
         "回答するときは、\n"
         "「答え」と「自信度」をセットで送ってくれ。\n\n"
         "【入力例】\n"
         "1:A1\n"
         "2:C3\n"
-        "3:B2\n\n"
+        "3:E2\n\n"
         "【自信度】\n"
         "1＝自信あり\n"
         "2＝少し迷った\n"
@@ -618,12 +622,12 @@ def format_quiz_messages(questions):
         f"{len(questions)}問分をまとめて送ってくれ（笑）"
     )
 
-    quiz_messages.append(
-        instruction_message
+    all_questions_message = (
+        "\n\n".join(question_parts)
+        + instruction_message
     )
 
-    return quiz_messages
-
+    return [all_questions_message]
 
 # =========================================================
 # 小テスト開始
@@ -640,7 +644,7 @@ def start_quiz(user_id):
             "小テストを開始するためのユーザーIDがありません。"
         )
 
-    questions = generate_quiz_questions(10)
+    questions = select_random_questions(10)
 
     study_sessions[user_id] = {
         "status": "waiting_for_answers",
