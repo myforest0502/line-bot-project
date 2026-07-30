@@ -1344,7 +1344,8 @@ for result_message in result_messages[1:]:
         result_message,
     )
 
-return
+        return
+
     # それ以外は、今までどおり普通に会話する
     try:
         reply_message = create_text_response(user_message)
