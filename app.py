@@ -717,9 +717,9 @@ def parse_quiz_answers(user_message):
 
     parsed_answers = {}
 
-    answer_pattern = re.compile(
-        r"^\s*(\d+)\s*[:：]\s*([A-Da-d])\s*([1-3])\s*$"
-    )
+   answer_pattern = re.compile(
+    r"^\s*(\d+)\s*[:：]\s*([A-Ea-e])\s*([1-3])\s*$"
+)
 
     for line in user_message.splitlines():
         if not line.strip():
@@ -740,6 +740,107 @@ def parse_quiz_answers(user_message):
         }
 
     return parsed_answers
+# =========================================================
+# 小テストの採点結果を作成
+# =========================================================
+
+def create_quiz_result_messages(questions, parsed_answers):
+    """
+    10問を採点し、
+    点数・正誤・正解・解説をLINE用の文章にまとめる。
+    """
+
+    score = 0
+    result_parts = []
+
+    for question_number, question_data in enumerate(
+        questions,
+        start=1,
+    ):
+        user_answer_data = parsed_answers.get(
+            question_number,
+            {},
+        )
+
+        selected_answer = user_answer_data.get(
+            "answer",
+            "",
+        )
+
+        confidence = user_answer_data.get(
+            "confidence",
+            "",
+        )
+
+        correct_answer = str(
+            question_data.get(
+                "answer",
+                "",
+            )
+        ).upper().strip()
+
+        explanation = str(
+            question_data.get(
+                "explanation",
+                "解説はありません。",
+            )
+        ).strip()
+
+        confidence_text = CONFIDENCE_LEVELS.get(
+            confidence,
+            "不明",
+        )
+
+        is_correct = (
+            selected_answer == correct_answer
+        )
+
+        if is_correct:
+            score += 1
+            result_mark = "○"
+        else:
+            result_mark = "×"
+
+        result_parts.append(
+            (
+                f"【第{question_number}問】{result_mark}\n"
+                f"あなたの回答：{selected_answer}\n"
+                f"正解：{correct_answer}\n"
+                f"自信度：{confidence_text}\n"
+                f"解説：{explanation}"
+            )
+        )
+
+    score_message = (
+        f"おう、採点できたぞ＾＾\n\n"
+        f"【結果】{score} / {len(questions)}問正解\n\n"
+    )
+
+    result_messages = []
+    current_message = score_message
+
+    for result_part in result_parts:
+        additional_text = result_part + "\n\n"
+
+        if (
+            len(current_message)
+            + len(additional_text)
+            > 1750
+        ):
+            result_messages.append(
+                current_message.strip()
+            )
+            current_message = additional_text
+
+        else:
+            current_message += additional_text
+
+    if current_message.strip():
+        result_messages.append(
+            current_message.strip()
+        )
+
+    return result_messages
 # =========================================================
 # 共通関数：LINEへ返信
 # =========================================================
@@ -1221,20 +1322,29 @@ def handle_text_message(event):
             )
             return
 
-        current_session["all_answers"].update(
-            parsed_answers
-        )
+    current_session["all_answers"].update(
+    parsed_answers
+)
 
-        reply_to_line(
-            event.reply_token,
-            (
-                "おう、10問分の回答を受け取ったぞ＾＾\n\n"
-                "答えと自信度も、ちゃんと保存できた。"
-                "次は採点につなげるからな（笑）"
-            ),
-        )
+result_messages = create_quiz_result_messages(
+    current_session["questions"],
+    parsed_answers,
+)
 
-        return
+current_session["status"] = "completed"
+
+reply_to_line(
+    event.reply_token,
+    result_messages[0],
+)
+
+for result_message in result_messages[1:]:
+    push_to_line(
+        user_id,
+        result_message,
+    )
+
+return
     # それ以外は、今までどおり普通に会話する
     try:
         reply_message = create_text_response(user_message)
