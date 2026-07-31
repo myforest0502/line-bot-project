@@ -1264,7 +1264,7 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text_message(event):
     user_message = event.message.text.strip()
-     user_id = getattr(
+    user_id = getattr(
         event.source,
         "user_id",
         None,
