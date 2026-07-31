@@ -1312,7 +1312,7 @@ def handle_text_message(event):
         )
         return
     # 初回メッセージなら、固定の第一声を返して準備待ちにする
-    if current_state is None:
+    if current_state is None and user_modes.get(user_id, "normal") != "chat":
         user_states[user_id] = "waiting_ready"
 
         reply_to_line(
