@@ -181,6 +181,8 @@ EDUCATION_RULE_PROMPT = """
 """
 # ユーザーごとの現在の会話状態を保存する
 user_states = {}
+# ユーザーごとの現在のモードを保存する
+user_modes = {}
 # =========================================================
 # 文書簡易分析「柔」共通プロンプト
 # =========================================================
@@ -1262,8 +1264,14 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text_message(event):
     user_message = event.message.text.strip()
+     user_id = getattr(
+        event.source,
+        "user_id",
+        None,
+    )
     # モード切替（まずは相談モードだけ）
     if user_message == "相談モード":
+        user_modes[user_id] = "chat"
         reply_to_line(
             event.reply_token,
             "💬相談モードへ切り替えたぞ！\n"
@@ -1274,11 +1282,7 @@ def handle_text_message(event):
     if not user_message:
         return
 
-    user_id = getattr(
-        event.source,
-        "user_id",
-        None,
-    )
+   
     # 現在の会話状態を取得する
     current_state = user_states.get(user_id)
      # 「問題出して」と言われたら小テストを開始する
