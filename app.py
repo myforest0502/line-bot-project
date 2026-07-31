@@ -1403,7 +1403,8 @@ def handle_text_message(event):
 
     # それ以外は、今までどおり普通に会話する
     try:
-        reply_message = create_text_response(user_message)
+        current_mode = user_modes.get(user_id, "normal")
+        reply_message = create_text_response(user_message, current_mode)
 
     except Exception:
         logging.exception("OpenAI response generation failed.")
