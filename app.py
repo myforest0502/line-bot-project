@@ -951,17 +951,33 @@ def show_loading_animation(user_id):
 # 共通関数：OpenAIへテキストを送る
 # =========================================================
 
-def create_text_response(user_message):
+def create_text_response(user_message, mode="normal"):
     """
     通常のテキスト会話用。
     """
+
+    system_prompt = GEN_OJI_PROMPT + "\n\n" + EDUCATION_RULE_PROMPT
+
+    if mode == "chat":
+        system_prompt += """
+
+現在は相談モードです。
+
+勉強の相談でも、
+実習の相談でも、
+雑談でも、
+恋愛相談でも構いません。
+
+ただし医学的・教育的な質問には、
+これまで通り丁寧に答えてください。
+"""
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {
                 "role": "system",
-                "content": GEN_OJI_PROMPT + "\n\n" + EDUCATION_RULE_PROMPT,
+                "content": system_prompt,
             },
             {
                 "role": "user",
