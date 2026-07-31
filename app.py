@@ -1304,16 +1304,16 @@ def handle_text_message(event):
         None,
     )
     if user_message == "ふりだしにもどる":
-    user_states.pop(user_id, None)
-    user_modes.pop(user_id, None)
-    user_names.pop(user_id, None)
+        user_states.pop(user_id, None)
+        user_modes.pop(user_id, None)
+        user_names.pop(user_id, None)
 
-    reply_to_line(
-        event.reply_token,
-        "おっと、全部ふりだしに戻したぞ（笑）\n"
-        "次のメッセージから、最初の出会いをやり直せるぜ＾＾"
-    )
-    return
+        reply_to_line(
+            event.reply_token,
+            "おっと、全部ふりだしに戻したぞ（笑）\n"
+            "次のメッセージから、最初の出会いをやり直せるぜ＾＾"
+        )
+        return
     # モード切替（まずは相談モードだけ）
     if user_message == "相談モード":
         user_modes[user_id] = "chat"
