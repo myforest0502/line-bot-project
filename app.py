@@ -1312,13 +1312,13 @@ def handle_text_message(event):
         )
         return
     if user_message == "勉強モード":
-    user_modes[user_id] = "study"
-    reply_to_line(
-        event.reply_token,
-        "📚勉強モードへ切り替えたぞ！\n"
-        "問題演習、国試対策、苦手分野の確認、なんでも来い＾＾"
-    )
-    return    
+        user_modes[user_id] = "study"
+        reply_to_line(
+            event.reply_token,
+            "📚勉強モードへ切り替えたぞ！\n"
+            "問題演習、国試対策、苦手分野の確認、なんでも来い＾＾"
+        )
+        return    
     if not user_message:
         return
 
