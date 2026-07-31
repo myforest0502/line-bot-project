@@ -1338,6 +1338,7 @@ def handle_text_message(event):
    
     # 現在の会話状態を取得する
     current_state = user_states.get(user_id)
+    rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
     if current_state == "waiting_name":
         user_names[user_id] = user_message
         user_states.pop(user_id, None)
@@ -1362,7 +1363,7 @@ def handle_text_message(event):
         return
 
     # 「休み」「休む」などが含まれていたら、問題を始めない
-        rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
+        
 
     if any(word in user_message for word in rest_words):
         reply_to_line(
