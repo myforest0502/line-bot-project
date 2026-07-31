@@ -1350,7 +1350,7 @@ def handle_text_message(event):
         )
         return
 
-if user_id not in user_names:
+    if user_id not in user_names:
         user_states[user_id] = "waiting_name"
 
         reply_to_line(
@@ -1360,18 +1360,18 @@ if user_id not in user_names:
             "お前の名前も聞かせてくれよ＾＾"
         )
         return
-     # 「問題出して」と言われたら小テストを開始する
-    # 「休み」「休む」などが含まれていたら、問題を始めずAIモードへ
-    rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
+
+    # 「休み」「休む」などが含まれていたら、問題を始めない
+        rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
 
     if any(word in user_message for word in rest_words):
         reply_to_line(
             event.reply_token,
-            "どした？何かあったんか？"
+            "どうした？何かあったんか？"
         )
         return
     # 初回メッセージなら、固定の第一声を返して準備待ちにする
-    if current_state is None:
+    if current_state is None and user_modes.get(user_id, "normal") == "normal":
         user_states[user_id] = "waiting_ready"
 
         reply_to_line(
