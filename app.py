@@ -1262,7 +1262,15 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text_message(event):
     user_message = event.message.text.strip()
-
+# モード切替（まずは相談モードだけ）
+if user_message == "相談モード":
+    reply_to_line(
+        event.reply_token,
+        "💬相談モードへ切り替えたぞ！\n"
+        "勉強のことでも、実習のことでも、雑談でもOK！\n"
+        "恋バナもありだぜ♡😎"
+    )
+    return
     if not user_message:
         return
 
