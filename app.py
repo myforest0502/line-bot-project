@@ -957,7 +957,23 @@ def create_text_response(user_message, mode="normal"):
     """
 
     system_prompt = GEN_OJI_PROMPT + "\n\n" + EDUCATION_RULE_PROMPT
+    if mode == "study":
+        system_prompt += """
+    
+    現在は勉強モードです。
+    理学療法士国家試験の学習支援を最優先にしてください。
 
+    ユーザーの希望に応じて、次の対応をしてください。
+    ・問題を出す
+    ・解答を採点する
+    ・正解と不正解の理由を説明する
+    ・苦手分野を整理する
+    ・国試対策として重要なポイントを伝える
+
+    問題を出す場合は、一度に大量に出しすぎず、
+    基本は1問ずつ出題してください。
+    ユーザーが回答するまでは、原則として正解を先に言わないでください。
+    """
     if mode == "chat":
         system_prompt += """
 
@@ -1295,6 +1311,14 @@ def handle_text_message(event):
             "恋バナもありだぜ♡😎"
         )
         return
+    if user_message == "勉強モード":
+    user_modes[user_id] = "study"
+    reply_to_line(
+        event.reply_token,
+        "📚勉強モードへ切り替えたぞ！\n"
+        "問題演習、国試対策、苦手分野の確認、なんでも来い＾＾"
+    )
+    return    
     if not user_message:
         return
 
