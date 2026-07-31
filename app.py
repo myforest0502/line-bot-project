@@ -181,6 +181,8 @@ EDUCATION_RULE_PROMPT = """
 """
 # ユーザーごとの現在の会話状態を保存する
 user_states = {}
+# ユーザーごとの名前を保存する
+user_names = {}
 # ユーザーごとの現在のモードを保存する
 user_modes = {}
 # =========================================================
@@ -1301,6 +1303,17 @@ def handle_text_message(event):
         "user_id",
         None,
     )
+    if user_message == "ふりだしにもどる":
+    user_states.pop(user_id, None)
+    user_modes.pop(user_id, None)
+    user_names.pop(user_id, None)
+
+    reply_to_line(
+        event.reply_token,
+        "おっと、全部ふりだしに戻したぞ（笑）\n"
+        "次のメッセージから、最初の出会いをやり直せるぜ＾＾"
+    )
+    return
     # モード切替（まずは相談モードだけ）
     if user_message == "相談モード":
         user_modes[user_id] = "chat"
@@ -1325,6 +1338,28 @@ def handle_text_message(event):
    
     # 現在の会話状態を取得する
     current_state = user_states.get(user_id)
+    if current_state == "waiting_name":
+        user_names[user_id] = user_message
+        user_states.pop(user_id, None)
+
+        reply_to_line(
+            event.reply_token,
+            f"そっかわかった！\n"
+            f"じゃあ今後は俺と{user_message}の二人三脚でゴールを目指して頑張るぜ！\n"
+            f"よろしくな！{user_message}＾＾"
+        )
+        return
+
+if user_id not in user_names:
+        user_states[user_id] = "waiting_name"
+
+        reply_to_line(
+            event.reply_token,
+            "おぉｗよくきたな！\n"
+            "俺は源ってんだ、みんなは源おじとか、源さんとかって呼んでるぜｗ\n"
+            "お前の名前も聞かせてくれよ＾＾"
+        )
+        return
      # 「問題出して」と言われたら小テストを開始する
     # 「休み」「休む」などが含まれていたら、問題を始めずAIモードへ
     rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
@@ -1336,7 +1371,7 @@ def handle_text_message(event):
         )
         return
     # 初回メッセージなら、固定の第一声を返して準備待ちにする
-    if current_state is None and user_modes.get(user_id, "normal") == "normal":
+    if current_state is None:
         user_states[user_id] = "waiting_ready"
 
         reply_to_line(
