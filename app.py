@@ -1314,7 +1314,7 @@ def handle_text_message(event):
             "次のメッセージから、最初の出会いをやり直せるぜ＾＾"
         )
         return
-    # モード切替（まずは相談モードだけ）
+    # モード切替
     if user_message == "相談モード":
         user_modes[user_id] = "chat"
         reply_to_line(
@@ -1331,7 +1331,17 @@ def handle_text_message(event):
             "📚勉強モードへ切り替えたぞ！\n"
             "問題演習、国試対策、苦手分野の確認、なんでも来い＾＾"
         )
-        return    
+        return
+    if user_message == "解説モード":
+        user_modes[user_id] = "explain"
+        reply_to_line(
+            event.reply_token,
+            "📄解説モードへ切り替えたぞ！\n"
+            "分からないところがある資料を見せてみろ＾＾\n"
+            "WordでもPDFでも写真でも、一緒に整理していこうぜ。"
+        )
+        return
+        
     if not user_message:
         return
 
