@@ -1418,6 +1418,30 @@ def handle_text_message(event):
     # 現在の会話状態を取得する
     current_state = user_states.get(user_id)
     rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
+
+    if current_state == "waiting_ready" and user_message == "準備OK":
+        user_states.pop(user_id, None)
+
+        reply_to_line(
+            event.reply_token,
+            (
+                "おう、任せろ＾＾\n"
+                "まず10問作るから、ちょっと待ってな（笑）\n\n"
+                "ごめんな…俺も年だから、"
+                "10問ずつしか出せねぇわｗ\n"
+                "それじゃいくぞ＾＾"
+            ),
+        )
+
+        quiz_thread = threading.Thread(
+            target=prepare_and_send_quiz,
+            args=(user_id,),
+            daemon=True,
+        )
+
+        quiz_thread.start()
+        return
+
     if current_state == "waiting_name":
         user_names[user_id] = user_message
         user_states.pop(user_id, None)
