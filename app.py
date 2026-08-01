@@ -17,6 +17,9 @@ from linebot.models import (
     FileMessage,
     ImageMessage,
     TextSendMessage,
+    QuickReply,
+    QuickReplyButton,
+    MessageAction,
 )
 
 from openai import OpenAI
@@ -876,6 +879,51 @@ def reply_to_line(reply_token, reply_message):
     except Exception:
         logging.exception("LINE reply failed.")
 # =========================================================
+# 共通関数：準備確認のクイックリプライ付き返信
+# =========================================================
+
+def reply_ready_question(reply_token):
+    """
+    通常来訪時の挨拶と、
+    「準備OK」「ちょっと待って」の選択肢を送る。
+    """
+
+    reply_message = TextSendMessage(
+        text=(
+            "お！きたなｗおつかれさん＾＾\n\n"
+            "話したい事もあるだろうが、\n"
+            "まずは問題からだ。\n\n"
+            "準備はいいか？"
+        ),
+        quick_reply=QuickReply(
+            items=[
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="✅ 準備OK",
+                        text="準備OK",
+                    )
+                ),
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="💬 ちょっと待って",
+                        text="ちょっと待って",
+                    )
+                ),
+            ]
+        ),
+    )
+
+    try:
+        line_bot_api.reply_message(
+            reply_token,
+            reply_message,
+        )
+
+    except Exception:
+        logging.exception(
+            "LINE quick reply failed."
+        )
+# =========================================================
 # 共通関数：LINEへPush送信
 # =========================================================
 
@@ -1406,13 +1454,8 @@ def handle_text_message(event):
     if current_state is None and user_modes.get(user_id, "normal") == "normal":
         user_states[user_id] = "waiting_ready"
 
-        reply_to_line(
-            event.reply_token,
-            (
-                "お！きたなｗおつかれさん＾＾\n"
-                "話したい事もあるだろうが、まずは問題からだ\n"
-                "準備はいいか？"
-            )
+        reply_ready_question(
+            event.reply_token
         )
         return    
      # 「問題出して」と言われたら小テストを開始する
