@@ -25,6 +25,7 @@ from linebot.models import (
 from openai import OpenAI
 from docx import Document
 from pypdf import PdfReader
+from database import user_names, user_modes
 
 # =========================================================
 # ロギング設定
@@ -185,9 +186,7 @@ EDUCATION_RULE_PROMPT = """
 # ユーザーごとの現在の会話状態を保存する
 user_states = {}
 # ユーザーごとの名前を保存する
-user_names = {}
 # ユーザーごとの現在のモードを保存する
-user_modes = {}
 # =========================================================
 # 文書簡易分析「柔」共通プロンプト
 # =========================================================

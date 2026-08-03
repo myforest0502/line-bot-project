@@ -7,3 +7,4 @@ wheel>=0.40.0
 build>=1.0.3
 python-docx
 pypdf
+psycopg[binary]>=3.2.0
