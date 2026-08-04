@@ -1591,6 +1591,23 @@ def handle_text_message(event):
 
         quiz_thread.start()
         return
+        if user_message == "準備OK！":
+            reply_to_line(
+            event.reply_token,
+            (
+                "おう、任せろ＾＾\n"
+                "まず5問作るから、ちょっと待ってな（笑）"
+            ),
+        )
+
+        quiz_thread = threading.Thread(
+            target=prepare_and_send_quiz,
+            args=(user_id,),
+            daemon=True,
+        )
+
+        quiz_thread.start()
+        return
     # 現在の会話状態を取得する
     current_state = user_states.get(user_id)
     rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
