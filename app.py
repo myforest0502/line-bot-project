@@ -1039,6 +1039,16 @@ def reply_study_continue_choice(reply_token):
             ]
         ),
     )
+    try:
+        line_bot_api.reply_message(
+            reply_token,
+            reply_message,
+        )
+
+    except Exception:
+        logging.exception(
+            "LINE study continue choice failed."
+        )
 def reply_study_ready_choice(reply_token):
     """
     勉強モード開始前の準備確認。
