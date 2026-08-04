@@ -881,31 +881,32 @@ def reply_to_line(reply_token, reply_message):
 # 共通関数：準備確認のクイックリプライ付き返信
 # =========================================================
 
-def reply_ready_question(reply_token):
+def reply_mode_select(reply_token, intro_text=None):
     """
-    通常来訪時の挨拶と、
-    「準備OK」「ちょっと待って」の選択肢を送る。
+    「今日は何する？＾＾」と、
+    勉強・質問・相談の3つの選択肢を送る。
     """
 
     reply_message = TextSendMessage(
-        text=(
-            "お！きたなｗおつかれさん＾＾\n\n"
-            "話したい事もあるだろうが、\n"
-            "まずは問題からだ。\n\n"
-            "準備はいいか？"
-        ),
+        text="今日は何する？＾＾",
         quick_reply=QuickReply(
             items=[
                 QuickReplyButton(
                     action=MessageAction(
-                        label="✅ 準備OK",
-                        text="準備OK",
+                        label="📖 勉強する！",
+                        text="勉強する",
                     )
                 ),
                 QuickReplyButton(
                     action=MessageAction(
-                        label="💬 ちょっと待って",
-                        text="ちょっと待って",
+                        label="💡 質問する！",
+                        text="質問する",
+                    )
+                ),
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="😊 相談がある",
+                        text="相談する",
                     )
                 ),
             ]
@@ -913,14 +914,22 @@ def reply_ready_question(reply_token):
     )
 
     try:
+        if intro_text:
+            messages = [
+                TextSendMessage(text=intro_text),
+                reply_message,
+            ]
+        else:
+            messages = reply_message
+
         line_bot_api.reply_message(
             reply_token,
-            reply_message,
+            messages,
         )
 
     except Exception:
         logging.exception(
-            "LINE quick reply failed."
+            "LINE mode select quick reply failed."
         )
 # =========================================================
 # 共通関数：LINEへPush送信
@@ -1383,7 +1392,7 @@ def handle_text_message(event):
         )
         return
     # モード切替
-    if user_message == "相談モード":
+    if user_message in ["相談する", "相談モード"]:
         user_modes[user_id] = "chat"
         reply_to_line(
             event.reply_token,
@@ -1392,7 +1401,7 @@ def handle_text_message(event):
             "恋バナもありだぜ♡😎"
         )
         return
-    if user_message == "勉強モード":
+    if user_message in ["勉強する", "勉強モード"]:
         user_modes[user_id] = "study"
         reply_to_line(
             event.reply_token,
@@ -1400,7 +1409,7 @@ def handle_text_message(event):
             "問題演習、国試対策、苦手分野の確認、なんでも来い＾＾"
         )
         return
-    if user_message == "解説モード":
+    if user_message in ["質問する", "解説モード"]:
         user_modes[user_id] = "explain"
         reply_to_line(
             event.reply_token,
@@ -1418,38 +1427,19 @@ def handle_text_message(event):
     current_state = user_states.get(user_id)
     rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
 
-    if current_state == "waiting_ready" and user_message == "準備OK":
-        user_states.pop(user_id, None)
-
-        reply_to_line(
-            event.reply_token,
-            (
-                "おう、任せろ＾＾\n"
-                "まず10問作るから、ちょっと待ってな（笑）\n\n"
-                "ごめんな…俺も年だから、"
-                "10問ずつしか出せねぇわｗ\n"
-                "それじゃいくぞ＾＾"
-            ),
-        )
-
-        quiz_thread = threading.Thread(
-            target=prepare_and_send_quiz,
-            args=(user_id,),
-            daemon=True,
-        )
-
-        quiz_thread.start()
-        return
+    
 
     if current_state == "waiting_name":
         user_names[user_id] = user_message
         user_states.pop(user_id, None)
 
-        reply_to_line(
+        reply_mode_select(
             event.reply_token,
-            f"そっかわかった！\n"
-            f"じゃあ今後は俺と{user_message}の二人三脚でゴールを目指して頑張るぜ！\n"
-            f"よろしくな！{user_message}＾＾"
+            intro_text=(
+                f"そっかわかった！\n"
+                f"じゃあ今後は俺と{user_message}の二人三脚でゴールを目指して頑張るぜ！\n"
+                f"よろしくな！{user_message}＾＾"
+            ),
         )
         return
 
@@ -1473,11 +1463,11 @@ def handle_text_message(event):
             "どうした？何かあったんか？"
         )
         return
-    # 初回メッセージなら、固定の第一声を返して準備待ちにする
+    # 初回メッセージなら、モード選択のクイックリプライを表示する
     if current_state is None and user_modes.get(user_id, "normal") == "normal":
-        user_states[user_id] = "waiting_ready"
 
-        reply_ready_question(
+
+        reply_mode_select(
             event.reply_token
         )
         return    
