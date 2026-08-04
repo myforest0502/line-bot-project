@@ -1039,6 +1039,35 @@ def reply_study_continue_choice(reply_token):
             ]
         ),
     )
+def reply_study_ready_choice(reply_token):
+    """
+    勉強モード開始前の準備確認。
+    """
+
+    reply_message = TextSendMessage(
+        text=(
+            "📚勉強モードへ切り替えたぞ！\n\n"
+            "問題演習、国試対策、苦手分野の確認、なんでも来い＾＾\n\n"
+            "まずは5問ずつ、全部で30問出すぞ！\n"
+            "準備ができたら教えてくれ＾＾"
+        ),
+        quick_reply=QuickReply(
+            items=[
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="✅ 準備OK！",
+                        text="準備OK！",
+                    )
+                ),
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="⏳ ちょっと待って",
+                        text="ちょっと待って",
+                    )
+                ),
+            ]
+        ),
+    )
 
     try:
         line_bot_api.reply_message(
@@ -1048,7 +1077,7 @@ def reply_study_continue_choice(reply_token):
 
     except Exception:
         logging.exception(
-            "LINE study continue choice failed."
+            "LINE study ready choice failed."
         )
 # =========================================================
 # 共通関数：LINEへPush送信
@@ -1522,11 +1551,9 @@ def handle_text_message(event):
         return
     if user_message in ["勉強する", "勉強モード"]:
         user_modes[user_id] = "study"
-        reply_to_line(
-            event.reply_token,
-            "📚勉強モードへ切り替えたぞ！\n"
-            "問題演習、国試対策、苦手分野の確認、なんでも来い＾＾"
-        )
+        reply_study_ready_choice(
+        event.reply_token
+    )
         return
     if user_message in ["質問する", "解説モード"]:
         user_modes[user_id] = "explain"
