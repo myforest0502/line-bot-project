@@ -1591,8 +1591,9 @@ def handle_text_message(event):
 
         quiz_thread.start()
         return
-        if user_message == "準備OK！":
-            reply_to_line(
+
+    if user_message == "準備OK！":
+        reply_to_line(
             event.reply_token,
             (
                 "おう、任せろ＾＾\n"
