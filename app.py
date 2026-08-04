@@ -1541,7 +1541,7 @@ def handle_text_message(event):
     if not user_message:
         return
 
-        current_session = study_sessions.get(user_id)
+    current_session = study_sessions.get(user_id)
 
     if (
         current_session
