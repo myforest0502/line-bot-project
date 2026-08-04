@@ -1011,7 +1011,7 @@ def reply_mode_select(reply_token, intro_text=None):
         logging.exception(
             "LINE mode select quick reply failed."
         )
-        def reply_study_continue_choice(reply_token):
+def reply_study_continue_choice(reply_token):
     """
     5問分の回答を保存した後、
     次の5問へ進むか、一時停止するかを確認する。
@@ -1651,20 +1651,19 @@ def handle_text_message(event):
             reply_to_line(
                 event.reply_token,
                 (
-                            (
-                "おう、回答は受け取ったぞ。\n\n"
-                "ただ、5問分を正しく読み取れなかったみてぇだ。\n"
-                "次の形で、1問目から5問目まで送ってくれ。\n\n"
-                "1:A1\n"
-                "2:B2\n"
-                "3:C3\n"
-                "4:D2\n"
-                "5:E1"
-            ),
+                    "おう、回答は受け取ったぞ。\n\n"
+                    "ただ、5問分を正しく読み取れなかったみてぇだ。\n"
+                    "次の形で、1問目から5問目まで送ってくれ。\n\n"
+                    "1:A1\n"
+                    "2:B2\n"
+                    "3:C3\n"
+                    "4:D2\n"
+                    "5:E1"
+                ),
             )
             return
 
-                current_set = current_session["current_set"]
+        current_set = current_session["current_set"]
         start_number = ((current_set - 1) * 5) + 1
 
         for local_number, answer_data in parsed_answers.items():
