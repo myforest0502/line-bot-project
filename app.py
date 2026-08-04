@@ -587,7 +587,7 @@ def generate_quiz_questions(question_count):
 # 小テストをLINE送信用の文章に分割
 # =========================================================
 
-def format_quiz_messages(questions):
+def format_quiz_messages(questions, start_number=1):
     """
     選ばれた5問を、1通の文章にまとめる。
     """
@@ -596,7 +596,7 @@ def format_quiz_messages(questions):
 
     for display_number, question_data in enumerate(
         questions,
-        start=1,
+        start=start_number,
     ):
         choices = question_data["choices"]
 
@@ -713,7 +713,12 @@ def start_next_quiz(user_id):
     current_session["all_questions"].extend(new_questions)
     current_session["status"] = "waiting_for_answers"
 
-    return format_quiz_messages(new_questions)
+    start_number = (current_session["current_set"] - 1) * 5 + 1
+
+    return format_quiz_messages(
+        new_questions,
+        start_number=start_number,
+    )
 # =========================================================
 # 小テストをバックグラウンドで生成・送信
 # =========================================================
