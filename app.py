@@ -589,7 +589,7 @@ def generate_quiz_questions(question_count):
 
 def format_quiz_messages(questions):
     """
-    選ばれた10問を、1通の文章にまとめる。
+    選ばれた5問を、1通の文章にまとめる。
     """
 
     question_parts = []
@@ -642,7 +642,7 @@ def format_quiz_messages(questions):
 
 def start_quiz(user_id):
     """
-    最初の10問だけ生成し、
+    最初の5問だけ生成し、
     ユーザーごとのセッションへ保存する。
     """
 
@@ -651,20 +651,69 @@ def start_quiz(user_id):
             "小テストを開始するためのユーザーIDがありません。"
         )
 
-    questions = select_random_questions(10)
+    questions = select_random_questions(5)
 
     study_sessions[user_id] = {
         "status": "waiting_for_answers",
         "current_set": 1,
-        "total_sets": 3,
+        "total_sets": 6,
         "questions": questions,
+        "all_questions": list(questions),
         "all_answers": {},
     }
 
     quiz_messages = format_quiz_messages(questions)
 
     return quiz_messages
+def start_next_quiz(user_id):
+    """
+    現在の学習セッションを維持したまま、
+    重複しない次の5問を準備する。
+    """
 
+    current_session = study_sessions.get(user_id)
+
+    if not current_session:
+        raise ValueError(
+            "続きから開始する学習セッションがありません。"
+        )
+
+    current_set = current_session.get("current_set", 1)
+    total_sets = current_session.get("total_sets", 6)
+
+    if current_set >= total_sets:
+        raise ValueError(
+            "すでに30問すべて出題済みです。"
+        )
+
+    used_ids = {
+        question.get("id")
+        for question in current_session.get("all_questions", [])
+    }
+
+    new_questions = []
+
+    for _ in range(20):
+        candidate_questions = select_random_questions(5)
+
+        if all(
+            question.get("id") not in used_ids
+            for question in candidate_questions
+        ):
+            new_questions = candidate_questions
+            break
+
+    if len(new_questions) != 5:
+        raise RuntimeError(
+            "重複しない次の5問を選べませんでした。"
+        )
+
+    current_session["current_set"] = current_set + 1
+    current_session["questions"] = new_questions
+    current_session["all_questions"].extend(new_questions)
+    current_session["status"] = "waiting_for_answers"
+
+    return format_quiz_messages(new_questions)
 # =========================================================
 # 小テストをバックグラウンドで生成・送信
 # =========================================================
@@ -707,7 +756,38 @@ def prepare_and_send_quiz(user_id):
                 "送ってくれ。"
             ),
         )
+def prepare_and_send_next_quiz(user_id):
+    """
+    学習セッションを維持したまま、
+    次の5問をバックグラウンドで準備して送信する。
+    """
 
+    try:
+        show_loading_animation(user_id)
+
+        quiz_messages = start_next_quiz(user_id)
+
+        for quiz_message in quiz_messages:
+            push_to_line(
+                user_id,
+                quiz_message,
+            )
+
+    except Exception:
+        logging.exception(
+            "Next quiz background processing failed."
+        )
+
+        push_to_line(
+            user_id,
+            (
+                "おう、悪い。\n"
+                "次の5問を準備する途中で、"
+                "源おじがズッコケた（笑）\n"
+                "少し待ってから、もう一度"
+                "「続ける」って送ってくれ。"
+            ),
+        )
 # =========================================================
 # 小テスト回答の読み取り
 # =========================================================
@@ -753,7 +833,7 @@ def parse_quiz_answers(user_message):
 
 def create_quiz_result_messages(questions, parsed_answers):
     """
-    10問を採点し、
+    5問を採点し、
     点数・正誤・正解・解説をLINE用の文章にまとめる。
     """
 
@@ -930,6 +1010,45 @@ def reply_mode_select(reply_token, intro_text=None):
     except Exception:
         logging.exception(
             "LINE mode select quick reply failed."
+        )
+        def reply_study_continue_choice(reply_token):
+    """
+    5問分の回答を保存した後、
+    次の5問へ進むか、一時停止するかを確認する。
+    """
+
+    reply_message = TextSendMessage(
+        text=(
+            "よし！次の5問だ！\n"
+            "いくぞ！"
+        ),
+        quick_reply=QuickReply(
+            items=[
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="▶️ 続ける",
+                        text="続ける",
+                    )
+                ),
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="📥 源おじに預ける（一時停止）",
+                        text="源おじに預ける",
+                    )
+                ),
+            ]
+        ),
+    )
+
+    try:
+        line_bot_api.reply_message(
+            reply_token,
+            reply_message,
+        )
+
+    except Exception:
+        logging.exception(
+            "LINE study continue choice failed."
         )
 # =========================================================
 # 共通関数：LINEへPush送信
@@ -1422,7 +1541,29 @@ def handle_text_message(event):
     if not user_message:
         return
 
-   
+        current_session = study_sessions.get(user_id)
+
+    if (
+        current_session
+        and current_session.get("status") == "waiting_for_continue"
+        and user_message == "続ける"
+    ):
+        current_session["status"] = "preparing_next"
+
+        reply_to_line(
+            event.reply_token,
+            "おう！次の5問を準備するぞ＾＾\n"
+            "ちょっと待ってな！"
+        )
+
+        quiz_thread = threading.Thread(
+            target=prepare_and_send_next_quiz,
+            args=(user_id,),
+            daemon=True,
+        )
+
+        quiz_thread.start()
+        return
     # 現在の会話状態を取得する
     current_state = user_states.get(user_id)
     rest_words = ["休み", "休む", "今日は無理", "今日はできない", "休ませて"]
@@ -1506,44 +1647,35 @@ def handle_text_message(event):
             user_message
         )
 
-        if len(parsed_answers) != 10:
+        if len(parsed_answers) != 5:
             reply_to_line(
                 event.reply_token,
                 (
-                    "おう、回答は受け取ったぞ。\n\n"
-                    "ただ、10問分を正しく読み取れなかったみてぇだ。"
-                    "次の形で、1問目から10問目まで送ってくれ。\n\n"
-                    "1:A1\n"
-                    "2:B2\n"
-                    "3:C3\n"
-                    "...\n"
-                    "10:E1"
-                ),
+                            (
+                "おう、回答は受け取ったぞ。\n\n"
+                "ただ、5問分を正しく読み取れなかったみてぇだ。\n"
+                "次の形で、1問目から5問目まで送ってくれ。\n\n"
+                "1:A1\n"
+                "2:B2\n"
+                "3:C3\n"
+                "4:D2\n"
+                "5:E1"
+            ),
             )
             return
 
-        current_session["all_answers"].update(
-            parsed_answers
+                current_set = current_session["current_set"]
+        start_number = ((current_set - 1) * 5) + 1
+
+        for local_number, answer_data in parsed_answers.items():
+            global_number = start_number + local_number - 1
+            current_session["all_answers"][global_number] = answer_data
+
+        current_session["status"] = "waiting_for_continue"
+
+        reply_study_continue_choice(
+            event.reply_token
         )
-
-        result_messages = create_quiz_result_messages(
-            current_session["questions"],
-            parsed_answers,
-        )
-
-        current_session["status"] = "completed"
-
-        reply_to_line(
-            event.reply_token,
-            result_messages[0],
-        )
-
-        for result_message in result_messages[1:]:
-            push_to_line(
-                user_id,
-                result_message,
-            )
-
         return
 
     # それ以外は、今までどおり普通に会話する
