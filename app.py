@@ -612,14 +612,21 @@ def format_quiz_messages(questions, start_number=1):
 
         question_parts.append(question_text)
 
+    example_numbers = range(
+        start_number,
+        min(start_number + 3, start_number + len(questions)),
+    )
+    example_answers = ["A1", "C3", "E2"]
+    input_examples = "\n".join(
+        f"{number}:{answer}"
+        for number, answer in zip(example_numbers, example_answers)
+    )
+
     instruction_message = (
         f"\n\n以上で全{len(questions)}問だ＾＾\n\n"
         "回答するときは、\n"
         "「答え」と「自信度」をセットで送ってくれ。\n\n"
-        "【入力例】\n"
-        "1:A1\n"
-        "2:C3\n"
-        "3:E2\n\n"
+        f"【入力例】\n{input_examples}\n\n"
         "【自信度】\n"
         "1＝自信あり\n"
         "2＝少し迷った\n"
@@ -1707,28 +1714,31 @@ def handle_text_message(event):
             user_message
         )
 
-        if len(parsed_answers) != 5:
+        current_set = current_session["current_set"]
+        start_number = ((current_set - 1) * 5) + 1
+        expected_numbers = set(range(start_number, start_number + 5))
+
+        if set(parsed_answers) != expected_numbers:
             reply_to_line(
                 event.reply_token,
                 (
                     "おう、回答は受け取ったぞ。\n\n"
                     "ただ、5問分を正しく読み取れなかったみてぇだ。\n"
-                    "次の形で、1問目から5問目まで送ってくれ。\n\n"
-                    "1:A1\n"
-                    "2:B2\n"
-                    "3:C3\n"
-                    "4:D2\n"
-                    "5:E1"
+                    f"第{start_number}問から第{start_number + 4}問まで、"
+                    "次の形で送ってくれ。\n\n"
+                    + "\n".join(
+                        f"{number}:{answer}"
+                        for number, answer in zip(
+                            range(start_number, start_number + 5),
+                            ["A1", "B2", "C3", "D2", "E1"],
+                        )
+                    )
                 ),
             )
             return
 
-        current_set = current_session["current_set"]
-        start_number = ((current_set - 1) * 5) + 1
-
-        for local_number, answer_data in parsed_answers.items():
-            global_number = start_number + local_number - 1
-            current_session["all_answers"][global_number] = answer_data
+        for question_number, answer_data in parsed_answers.items():
+            current_session["all_answers"][question_number] = answer_data
 
         current_session["status"] = "waiting_for_continue"
 
