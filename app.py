@@ -25,7 +25,7 @@ from linebot.models import (
 from openai import OpenAI
 from docx import Document
 from pypdf import PdfReader
-from database import user_names, user_modes
+from database import reset_user_profile, user_names, user_modes
 
 # =========================================================
 # ロギング設定
@@ -1585,8 +1585,25 @@ def handle_text_message(event):
     )
     if user_message == "ふりだしにもどる":
         user_states.pop(user_id, None)
-        user_modes.pop(user_id, None)
-        user_names.pop(user_id, None)
+        study_sessions.pop(user_id, None)
+
+        try:
+            reset_user_profile(user_id)
+
+        except Exception:
+            logging.exception(
+                "Complete user reset failed: user_id=%s",
+                user_id,
+            )
+            reply_to_line(
+                event.reply_token,
+                (
+                    "おう、会話と学習の状態はリセットしたぞ。\n"
+                    "ただ、名前とモードのリセットを最後まで確認できなかった。\n"
+                    "少し待ってから、もう一度「ふりだしにもどる」と送ってくれ。"
+                ),
+            )
+            return
 
         reply_to_line(
             event.reply_token,

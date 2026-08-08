@@ -50,6 +50,10 @@ def load_current_app_functions() -> SimpleNamespace:
         "prepare_and_send_next_quiz": lambda *args, **kwargs: None,
         "select_random_questions": lambda count: make_questions()[:count],
     }
+    namespace["reset_user_profile"] = lambda user_id: (
+        namespace["user_names"].pop(user_id, None),
+        namespace["user_modes"].pop(user_id, None),
+    )
     extracted_module = ast.Module(body=function_nodes, type_ignores=[])
     ast.fix_missing_locations(extracted_module)
     exec(compile(extracted_module, str(APP_PATH), "exec"), namespace)
@@ -97,6 +101,8 @@ class QuizAnswerNumberingTest(unittest.TestCase):
     def setUp(self) -> None:
         app.study_sessions.clear()
         app.user_states.clear()
+        app.user_names.clear()
+        app.user_modes.clear()
 
     def prepare_session(
         self,
@@ -274,6 +280,118 @@ class QuizAnswerNumberingTest(unittest.TestCase):
         self.assertIn("第6問から第10問まで", reply_messages[0])
         self.assertIn("6:A1", reply_messages[0])
         self.assertIn("10:E1", reply_messages[0])
+
+    def test_restart_command_completely_resets_every_session_state(self) -> None:
+        user_id = "reset-test-user"
+        reset_cases = [
+            ("waiting_for_answers", "study"),
+            ("waiting_for_continue", "study"),
+            ("preparing_next", "study"),
+            ("quiz_completed", "study"),
+            (None, "study"),
+            (None, "chat"),
+            (None, "explain"),
+            (None, "normal"),
+        ]
+        function_globals = app.handle_text_message.__globals__
+        original_reply = function_globals["reply_to_line"]
+        original_create_text_response = function_globals["create_text_response"]
+        original_continue = function_globals["reply_study_continue_choice"]
+
+        try:
+            for status, mode in reset_cases:
+                with self.subTest(status=status, mode=mode):
+                    app.user_states[user_id] = "waiting_name"
+                    app.user_names[user_id] = "テストユーザー"
+                    app.user_modes[user_id] = mode
+
+                    if status is None:
+                        app.study_sessions.pop(user_id, None)
+                    else:
+                        app.study_sessions[user_id] = {
+                            "status": status,
+                            "current_set": 6,
+                            "total_sets": 6,
+                            "questions": make_questions(),
+                            "all_questions": make_all_questions(),
+                            "all_answers": {
+                                1: {"answer": "A", "confidence": "1"}
+                            },
+                            "quiz_result": {"score": 1, "total": 30},
+                        }
+
+                    reply_messages = []
+                    function_globals["reply_to_line"] = (
+                        lambda _token, message: reply_messages.append(message)
+                    )
+                    function_globals["create_text_response"] = (
+                        lambda *args, **kwargs: self.fail(
+                            "リセット命令が通常のAI会話へ流れました。"
+                        )
+                    )
+                    function_globals["reply_study_continue_choice"] = (
+                        lambda *args, **kwargs: self.fail(
+                            "リセット後に以前の学習状態が処理されました。"
+                        )
+                    )
+
+                    app.handle_text_message(
+                        make_text_event(user_id, "ふりだしにもどる")
+                    )
+
+                    self.assertNotIn(user_id, app.user_states)
+                    self.assertNotIn(user_id, app.study_sessions)
+                    self.assertNotIn(user_id, app.user_modes)
+                    self.assertNotIn(user_id, app.user_names)
+                    self.assertEqual(1, len(reply_messages))
+                    self.assertIn("ふりだしに戻した", reply_messages[0])
+        finally:
+            function_globals["reply_to_line"] = original_reply
+            function_globals["create_text_response"] = original_create_text_response
+            function_globals["reply_study_continue_choice"] = original_continue
+
+    def test_restart_command_reports_database_failure_without_ai_fallback(self) -> None:
+        user_id = "reset-failure-test-user"
+        app.user_states[user_id] = "waiting_name"
+        app.user_names[user_id] = "テストユーザー"
+        app.user_modes[user_id] = "study"
+        app.study_sessions[user_id] = {
+            "status": "waiting_for_continue",
+            "current_set": 2,
+        }
+        reply_messages = []
+        function_globals = app.handle_text_message.__globals__
+        original_reply = function_globals["reply_to_line"]
+        original_reset = function_globals["reset_user_profile"]
+        original_create_text_response = function_globals["create_text_response"]
+        function_globals["reply_to_line"] = (
+            lambda _token, message: reply_messages.append(message)
+        )
+        function_globals["reset_user_profile"] = (
+            lambda _user_id: (_ for _ in ()).throw(RuntimeError("DB unavailable"))
+        )
+        function_globals["create_text_response"] = (
+            lambda *args, **kwargs: self.fail(
+                "DB障害時に通常のAI会話へ流れました。"
+            )
+        )
+
+        try:
+            app.handle_text_message(
+                make_text_event(user_id, "ふりだしにもどる")
+            )
+        finally:
+            function_globals["reply_to_line"] = original_reply
+            function_globals["reset_user_profile"] = original_reset
+            function_globals["create_text_response"] = original_create_text_response
+
+        self.assertNotIn(user_id, app.user_states)
+        self.assertNotIn(user_id, app.study_sessions)
+        self.assertEqual("テストユーザー", app.user_names[user_id])
+        self.assertEqual("study", app.user_modes[user_id])
+        self.assertEqual(1, len(reply_messages))
+        self.assertNotIn("全部ふりだしに戻した", reply_messages[0])
+        self.assertIn("最後まで確認できなかった", reply_messages[0])
 
 
 if __name__ == "__main__":

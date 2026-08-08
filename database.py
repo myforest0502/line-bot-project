@@ -154,3 +154,25 @@ init_database()
 
 user_names = PersistentUserStore("name")
 user_modes = PersistentUserStore("mode")
+
+
+def reset_user_profile(user_id: str) -> None:
+    """指定ユーザーの名前とモードを同時に初期化する。"""
+    if not database_is_available():
+        user_names._local_store.pop(user_id, None)
+        user_modes._local_store.pop(user_id, None)
+        return
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE user_profiles
+                SET
+                    name = NULL,
+                    mode = NULL,
+                    updated_at = NOW()
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
