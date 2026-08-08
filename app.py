@@ -7,6 +7,7 @@ import json
 import urllib.request
 import re
 import random
+import unicodedata
 from flask import Flask, request, abort
 
 from linebot import LineBotApi, WebhookHandler
@@ -612,18 +613,15 @@ def format_quiz_messages(questions, start_number=1):
 
         question_parts.append(question_text)
 
-    example_numbers = range(
-        start_number,
-        min(start_number + 3, start_number + len(questions)),
-    )
-    example_answers = ["A1", "C3", "E2"]
+    example_numbers = range(start_number, start_number + len(questions))
+    example_answers = ["A1", "B2", "C3", "D1", "E2"]
     input_examples = "\n".join(
         f"{number}:{answer}"
         for number, answer in zip(example_numbers, example_answers)
     )
 
     instruction_message = (
-        f"\n\n以上で全{len(questions)}問だ＾＾\n\n"
+        "【回答方法】\n"
         "回答するときは、\n"
         "「答え」と「自信度」をセットで送ってくれ。\n\n"
         f"【入力例】\n{input_examples}\n\n"
@@ -637,8 +635,9 @@ def format_quiz_messages(questions, start_number=1):
     )
 
     all_questions_message = (
-        "\n\n".join(question_parts)
-        + instruction_message
+        instruction_message
+        + "\n\n"
+        + "\n\n".join(question_parts)
     )
 
     return [all_questions_message]
@@ -804,7 +803,7 @@ def prepare_and_send_next_quiz(user_id):
 # 小テスト回答の読み取り
 # =========================================================
 
-def parse_quiz_answers(user_message):
+def parse_quiz_answers(user_message, expected_numbers=None):
     """
     例：
     1:A1
@@ -814,31 +813,65 @@ def parse_quiz_answers(user_message):
     問題番号・回答・自信度に分ける。
     """
 
-    parsed_answers = {}
+    normalized_message = unicodedata.normalize("NFKC", user_message).upper()
+    compact_message = re.sub(r"[\s,、]+", "", normalized_message)
 
-    answer_pattern = re.compile(
-        r"^\s*(\d+)\s*[:：]\s*([A-Ea-e])\s*([1-3])\s*$"
-    )
+    if not compact_message:
+        return {}
 
-    for line in user_message.splitlines():
-        if not line.strip():
-            continue
+    explicit_pattern = re.compile(r"(\d+):?([A-E])([1-3])")
 
-        match = answer_pattern.match(line)
+    if compact_message[0].isdigit():
+        explicit_matches = list(explicit_pattern.finditer(compact_message))
 
-        if not match:
-            continue
+        if "".join(match.group(0) for match in explicit_matches) != compact_message:
+            return {}
 
-        question_number = int(match.group(1))
-        selected_answer = match.group(2).upper()
-        confidence = match.group(3)
+        parsed_answers = {}
 
-        parsed_answers[question_number] = {
+        for match in explicit_matches:
+            question_number = int(match.group(1))
+
+            if question_number in parsed_answers:
+                return {}
+
+            parsed_answers[question_number] = {
+                "answer": match.group(2),
+                "confidence": match.group(3),
+            }
+
+        if len(parsed_answers) != 5:
+            return {}
+
+        if expected_numbers is not None and set(parsed_answers) != set(expected_numbers):
+            return {}
+
+        return parsed_answers
+
+    implicit_matches = re.findall(r"([A-E])([1-3])", compact_message)
+
+    if (
+        len(implicit_matches) != 5
+        or "".join("".join(match) for match in implicit_matches)
+        != compact_message
+    ):
+        return {}
+
+    answer_numbers = sorted(expected_numbers or range(1, 6))
+
+    if len(answer_numbers) != 5:
+        return {}
+
+    return {
+        question_number: {
             "answer": selected_answer,
             "confidence": confidence,
         }
-
-    return parsed_answers
+        for question_number, (selected_answer, confidence) in zip(
+            answer_numbers,
+            implicit_matches,
+        )
+    }
 
 
 def calculate_quiz_result(questions, answers):
@@ -1760,13 +1793,14 @@ def handle_text_message(event):
         and current_session.get("status")
         == "waiting_for_answers"
     ):
-        parsed_answers = parse_quiz_answers(
-            user_message
-        )
-
         current_set = current_session["current_set"]
         start_number = ((current_set - 1) * 5) + 1
         expected_numbers = set(range(start_number, start_number + 5))
+
+        parsed_answers = parse_quiz_answers(
+            user_message,
+            expected_numbers=expected_numbers,
+        )
 
         if set(parsed_answers) != expected_numbers:
             reply_to_line(

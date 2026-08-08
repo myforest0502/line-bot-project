@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import logging
 import re
+import unicodedata
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -35,6 +36,7 @@ def load_current_app_functions() -> SimpleNamespace:
 
     namespace = {
         "re": re,
+        "unicodedata": unicodedata,
         "logging": logging,
         "threading": SimpleNamespace(Thread=None),
         "study_sessions": {},
@@ -135,8 +137,117 @@ class QuizAnswerNumberingTest(unittest.TestCase):
                 for number in range(start_number, start_number + 5):
                     self.assertIn(f"【第{number}問】", message)
                 self.assertIn(f"{start_number}:A1", message)
-                self.assertIn(f"{start_number + 1}:C3", message)
-                self.assertIn(f"{start_number + 2}:E2", message)
+                self.assertIn(f"{start_number + 1}:B2", message)
+                self.assertIn(f"{start_number + 2}:C3", message)
+                self.assertIn(f"{start_number + 3}:D1", message)
+                self.assertIn(f"{start_number + 4}:E2", message)
+                self.assertLess(
+                    message.index("【回答方法】"),
+                    message.index(f"【第{start_number}問】"),
+                )
+                self.assertEqual(1, message.count("【回答方法】"))
+
+    def test_parser_accepts_common_input_variations_in_all_sets(self) -> None:
+        answer_pairs = ["A1", "B2", "C3", "D1", "E2"]
+        fullwidth_map = str.maketrans(
+            "0123456789:ABCDE",
+            "０１２３４５６７８９：ＡＢＣＤＥ",
+        )
+
+        for current_set in range(1, 7):
+            start_number = ((current_set - 1) * 5) + 1
+            expected_numbers = list(range(start_number, start_number + 5))
+            explicit = [
+                f"{number}:{answer}"
+                for number, answer in zip(expected_numbers, answer_pairs)
+            ]
+            fullwidth = [value.translate(fullwidth_map) for value in explicit]
+            valid_inputs = [
+                "\n".join(explicit),
+                " ".join(value.lower() for value in explicit),
+                ",".join(explicit),
+                "\t".join(explicit),
+                "  ".join(value.replace(":", " : ") for value in explicit),
+                "\n".join(value.replace("Ａ", " Ａ ").replace("１", " １ ")
+                          for value in fullwidth),
+                "\n".join(
+                    f"{number} ： {answer[0]} {answer[1]}".translate(fullwidth_map)
+                    for number, answer in zip(expected_numbers, answer_pairs)
+                ),
+                " ".join(value.replace(":", "") for value in explicit),
+                "A1B2C3D1E2",
+                "a1 b2 c3 d1 e2",
+                "A 1   B 2  C 3  D 1  E 2",
+            ]
+
+            for user_message in valid_inputs:
+                with self.subTest(
+                    current_set=current_set,
+                    user_message=user_message,
+                ):
+                    parsed = app.parse_quiz_answers(
+                        user_message,
+                        expected_numbers=expected_numbers,
+                    )
+                    self.assertEqual(expected_numbers, list(parsed))
+                    self.assertEqual(
+                        answer_pairs,
+                        [
+                            data["answer"] + data["confidence"]
+                            for data in parsed.values()
+                        ],
+                    )
+
+    def test_parser_rejects_invalid_or_incomplete_inputs(self) -> None:
+        expected_numbers = list(range(6, 11))
+        invalid_inputs = [
+            "6:A4 7:B2 8:C3 9:D1 10:E2",
+            "6:F1 7:B2 8:C3 9:D1 10:E2",
+            "A1 B2 C3 D1",
+            "A1 B2 C3 D1 E2 A1",
+            "6:A1 6:B2 8:C3 9:D1 10:E2",
+            "1:A1 2:B2 3:C3 4:D1 5:E2",
+            "6:A1 7:B2 8:C3 9:D1",
+            "6:A1 7:B2 8:C3 9:D1 10:E2 不明",
+        ]
+
+        for user_message in invalid_inputs:
+            with self.subTest(user_message=user_message):
+                self.assertEqual(
+                    {},
+                    app.parse_quiz_answers(
+                        user_message,
+                        expected_numbers=expected_numbers,
+                    ),
+                )
+
+    def test_invalid_variations_do_not_modify_existing_answers(self) -> None:
+        user_id = "invalid-input-test-user"
+        original_answers = {
+            number: {"answer": "A", "confidence": "1"}
+            for number in range(1, 6)
+        }
+        invalid_inputs = [
+            "6:A4 7:B2 8:C3 9:D1 10:E2",
+            "6:F1 7:B2 8:C3 9:D1 10:E2",
+            "A1 B2 C3 D1",
+            "A1 B2 C3 D1 E2 A1",
+            "6:A1 6:B2 8:C3 9:D1 10:E2",
+            "1:A1 2:B2 3:C3 4:D1 5:E2",
+        ]
+
+        for user_message in invalid_inputs:
+            with self.subTest(user_message=user_message):
+                self.prepare_session(user_id, 2, {
+                    number: dict(data)
+                    for number, data in original_answers.items()
+                })
+
+                app.handle_text_message(make_text_event(user_id, user_message))
+
+                session = app.study_sessions[user_id]
+                self.assertEqual(original_answers, session["all_answers"])
+                self.assertEqual("waiting_for_answers", session["status"])
 
     def test_global_numbers_are_saved_with_answer_and_confidence(self) -> None:
         user_id = "numbering-test-user"
