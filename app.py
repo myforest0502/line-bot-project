@@ -839,6 +839,39 @@ def parse_quiz_answers(user_message):
         }
 
     return parsed_answers
+
+
+def calculate_quiz_result(questions, answers):
+    """問題と回答を通し番号で対応付け、採点結果を返す。"""
+    score = 0
+    details = []
+
+    for question_number, question_data in enumerate(questions, start=1):
+        answer_data = answers.get(question_number, {})
+        selected_answer = str(answer_data.get("answer", "")).upper().strip()
+        confidence = str(answer_data.get("confidence", "")).strip()
+        correct_answer = str(question_data.get("answer", "")).upper().strip()
+        is_correct = selected_answer == correct_answer
+
+        if is_correct:
+            score += 1
+
+        details.append(
+            {
+                "question_number": question_number,
+                "question_id": question_data.get("id"),
+                "selected_answer": selected_answer,
+                "correct_answer": correct_answer,
+                "confidence": confidence,
+                "is_correct": is_correct,
+            }
+        )
+
+    return {
+        "score": score,
+        "total": len(questions),
+        "details": details,
+    }
 # =========================================================
 # 小テストの採点結果を作成
 # =========================================================
@@ -1739,6 +1772,25 @@ def handle_text_message(event):
 
         for question_number, answer_data in parsed_answers.items():
             current_session["all_answers"][question_number] = answer_data
+
+        if current_set >= current_session["total_sets"]:
+            quiz_result = calculate_quiz_result(
+                current_session["all_questions"],
+                current_session["all_answers"],
+            )
+            current_session["quiz_result"] = quiz_result
+            current_session["status"] = "quiz_completed"
+
+            reply_to_line(
+                event.reply_token,
+                (
+                    "おう、30問すべて回答できたぞ＾＾\n\n"
+                    f"【結果】{quiz_result['score']} / "
+                    f"{quiz_result['total']}問正解\n\n"
+                    "詳しい解説は、これから5問ずつ一緒に見ていこう。"
+                ),
+            )
+            return
 
         current_session["status"] = "waiting_for_continue"
 

@@ -22,6 +22,8 @@ def load_current_app_functions() -> SimpleNamespace:
     target_names = {
         "format_quiz_messages",
         "parse_quiz_answers",
+        "calculate_quiz_result",
+        "start_next_quiz",
         "handle_text_message",
     }
     function_nodes = []
@@ -46,6 +48,7 @@ def load_current_app_functions() -> SimpleNamespace:
         "create_text_response": lambda *args, **kwargs: "unused",
         "prepare_and_send_quiz": lambda *args, **kwargs: None,
         "prepare_and_send_next_quiz": lambda *args, **kwargs: None,
+        "select_random_questions": lambda count: make_questions()[:count],
     }
     extracted_module = ast.Module(body=function_nodes, type_ignores=[])
     ast.fix_missing_locations(extracted_module)
@@ -66,6 +69,19 @@ def make_questions() -> list[dict]:
             "explanation": "テスト解説",
         }
         for number in range(1, 6)
+    ]
+
+
+def make_all_questions() -> list[dict]:
+    return [
+        {
+            "id": 1000 + number,
+            "question": f"テスト問題{number}",
+            "choices": {key: f"選択肢{key}" for key in "ABCDE"},
+            "answer": "ABCDE"[(number - 1) % 5],
+            "explanation": f"テスト解説{number}",
+        }
+        for number in range(1, 31)
     ]
 
 
@@ -119,7 +135,7 @@ class QuizAnswerNumberingTest(unittest.TestCase):
     def test_global_numbers_are_saved_with_answer_and_confidence(self) -> None:
         user_id = "numbering-test-user"
 
-        for current_set in range(1, 7):
+        for current_set in range(1, 6):
             with self.subTest(current_set=current_set):
                 start_number = ((current_set - 1) * 5) + 1
                 expected_numbers = list(range(start_number, start_number + 5))
@@ -139,6 +155,76 @@ class QuizAnswerNumberingTest(unittest.TestCase):
                     )
                 )
                 self.assertEqual("waiting_for_continue", session["status"])
+
+    def test_final_set_completes_and_scores_all_thirty_questions(self) -> None:
+        user_id = "completion-test-user"
+        questions = make_all_questions()
+        all_answers = {
+            number: {
+                "answer": questions[number - 1]["answer"],
+                "confidence": str(((number - 1) % 3) + 1),
+            }
+            for number in range(1, 26)
+        }
+        final_answers = {
+            26: {"answer": questions[25]["answer"], "confidence": "2"},
+            27: {"answer": "E", "confidence": "3"},
+            28: {"answer": questions[27]["answer"], "confidence": "1"},
+            29: {"answer": "A", "confidence": "2"},
+            30: {"answer": questions[29]["answer"], "confidence": "3"},
+        }
+        # 第27問の正答はB、第29問の正答はDなので、この2問だけ不正解。
+        self.prepare_session(user_id, 6, all_answers)
+        session = app.study_sessions[user_id]
+        session["questions"] = questions[25:]
+        session["all_questions"] = questions
+        reply_messages = []
+        continue_choice_calls = []
+        function_globals = app.handle_text_message.__globals__
+        original_reply = function_globals["reply_to_line"]
+        original_continue = function_globals["reply_study_continue_choice"]
+        function_globals["reply_to_line"] = (
+            lambda _token, message: reply_messages.append(message)
+        )
+        function_globals["reply_study_continue_choice"] = (
+            lambda token: continue_choice_calls.append(token)
+        )
+        answer_text = "\n".join(
+            f"{number}:{data['answer']}{data['confidence']}"
+            for number, data in final_answers.items()
+        )
+
+        try:
+            app.handle_text_message(make_text_event(user_id, answer_text))
+        finally:
+            function_globals["reply_to_line"] = original_reply
+            function_globals["reply_study_continue_choice"] = original_continue
+
+        result = session["quiz_result"]
+        self.assertEqual("quiz_completed", session["status"])
+        self.assertEqual([], continue_choice_calls)
+        self.assertEqual(30, result["total"])
+        self.assertEqual(28, result["score"])
+        self.assertEqual(30, len(result["details"]))
+        self.assertEqual(list(range(1, 31)), [
+            detail["question_number"] for detail in result["details"]
+        ])
+        self.assertEqual(
+            [question["id"] for question in questions],
+            [detail["question_id"] for detail in result["details"]],
+        )
+        self.assertEqual(
+            [session["all_answers"][number]["confidence"] for number in range(1, 31)],
+            [detail["confidence"] for detail in result["details"]],
+        )
+        self.assertIn("【結果】28 / 30問正解", reply_messages[0])
+
+        app.handle_text_message(make_text_event(user_id, "続ける"))
+        self.assertEqual("quiz_completed", session["status"])
+        self.assertNotEqual("preparing_next", session["status"])
+
+        with self.assertRaisesRegex(ValueError, "30問すべて出題済み"):
+            app.start_next_quiz(user_id)
 
     def test_each_set_rejects_numbers_outside_its_range(self) -> None:
         user_id = "range-validation-test-user"
